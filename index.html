@@ -327,7 +327,20 @@ input[type=range]{width:100%;margin-top:12px;accent-color:var(--accent);height:2
 .dialog .btns{display:flex;gap:8px}
 .dialog .btns .btn{flex:1}
 .dialog .btn.red{background:var(--danger);border-color:var(--danger);color:#fff}
-#filein{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.quick{display:flex;gap:8px;margin:-2px 0 12px}
+.qbtn{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:11px 10px;border-radius:14px;border:1px dashed var(--surface-3);background:transparent;font-weight:800;font-size:13.5px;white-space:nowrap}
+.qbtn svg.i{width:17px;height:17px;color:var(--accent)}
+.pickgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.pk{all:unset;cursor:pointer;position:relative;aspect-ratio:1/1;border-radius:16px;overflow:hidden;background:var(--surface-2);box-shadow:0 0 0 1px var(--line);transition:box-shadow .15s}
+.pk img{width:100%;height:100%;object-fit:contain;transition:opacity .15s}
+.pk.on{box-shadow:0 0 0 3px var(--accent)}
+.pk:not(.on) img{opacity:.4}
+.pk .ck{position:absolute;right:6px;top:6px;width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.92);box-shadow:0 0 0 1.5px rgba(0,0,0,.12);display:grid;place-items:center;color:#fff}
+.pk.on .ck{background:var(--accent);box-shadow:none}
+.pk .ck svg.i{width:14px;height:14px;stroke-width:2.6}
+.pk .dup{position:absolute;left:6px;bottom:6px;font-size:10px;font-weight:800;padding:3px 7px;border-radius:999px;background:#F3D27A;color:#1c1a17}
+.cta[disabled]{opacity:.45}
+#filein,#fitsin{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 </style>
 </head>
 <body>
@@ -339,6 +352,7 @@ input[type=range]{width:100%;margin-top:12px;accent-color:var(--accent);height:2
 <div class="toast" id="toast" role="status"></div>
 <div class="dialog" id="dialog"><div class="box"><p id="dlg-msg"></p><div class="btns"><button class="btn" id="dlg-no">Cancelar</button><button class="btn red" id="dlg-yes">Eliminar</button></div></div></div>
 <input type="file" id="filein" accept="image/*" multiple>
+<input type="file" id="fitsin" accept="image/*" multiple>
 
 <script>
 'use strict';
@@ -390,6 +404,7 @@ const IC = {
   copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
   phone: '<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',
   cloudsync: '<path d="M7 18h10a4 4 0 0 0 .6-8A5.5 5.5 0 0 0 7 9.5 4.3 4.3 0 0 0 7 18z"/>',
+  download: '<path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/>',
   calendar: '<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/>',
 };
 const WIC = {
@@ -546,15 +561,73 @@ function extractColors(img) {
   out.sort((a, b) => b.w - a.w); const tot = out.reduce((s, o) => s + o.w, 0) || 1;
   return out.filter((o, i) => i === 0 || o.w / tot > 0.13).slice(0, 3).map(o => rgbToHex(...o.rgb));
 }
+async function processSource(img) {
+  const big = drawTo(img, 1000); const blob = await canvasBlob(big, 0.84);
+  const small = drawTo(img, 560); const dataURL = small.toDataURL('image/jpeg', 0.72);
+  const aiBlob = await canvasBlob(drawTo(img, 768), 0.82);
+  return { blob, dataURL, aiBlob, colors: extractColors(img), ph: dhash(img) };
+}
 async function processFile(file) {
   const url = URL.createObjectURL(file);
-  try {
-    const img = await loadImg(url);
-    const big = drawTo(img, 1000); const blob = await canvasBlob(big, 0.84);
-    const small = drawTo(img, 560); const dataURL = small.toDataURL('image/jpeg', 0.72);
-    const aiBlob = await canvasBlob(drawTo(img, 768), 0.82);
-    return { blob, dataURL, aiBlob, colors: extractColors(img) };
-  } finally { URL.revokeObjectURL(url); }
+  try { return await processSource(await loadImg(url)); } finally { URL.revokeObjectURL(url); }
+}
+/* perceptual hash (dHash 9x8) to spot repeated garments */
+function dhash(img) {
+  const c = document.createElement('canvas'); c.width = 9; c.height = 8; const x = c.getContext('2d', { willReadFrequently: true });
+  x.fillStyle = '#fff'; x.fillRect(0, 0, 9, 8); x.drawImage(img, 0, 0, 9, 8); const d = x.getImageData(0, 0, 9, 8).data;
+  const g = i => d[i * 4] * .299 + d[i * 4 + 1] * .587 + d[i * 4 + 2] * .114; let bits = '';
+  for (let y = 0; y < 8; y++) for (let k = 0; k < 8; k++) bits += g(y * 9 + k) > g(y * 9 + k + 1) ? '1' : '0';
+  let hex = ''; for (let i = 0; i < 64; i += 4) hex += parseInt(bits.slice(i, i + 4), 2).toString(16); return hex;
+}
+function hamming(a, b) { if (!a || !b || a.length !== b.length) return 99; let n = 0; for (let i = 0; i < a.length; i++) { let v = parseInt(a[i], 16) ^ parseInt(b[i], 16); while (v) { n += v & 1; v >>= 1; } } return n; }
+
+/* ---------- Fits screenshot importer: find each garment in a wardrobe screenshot ---------- */
+function segmentGarments(img) {
+  const W0 = img.naturalWidth || img.width, H0 = img.naturalHeight || img.height;
+  const W = 360, k = W / W0, H = Math.max(1, Math.round(H0 * k)), N = W * H;
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(img, 0, 0, W, H); const d = x.getImageData(0, 0, W, H).data;
+  const hist = new Map(); for (let i = 0; i < d.length; i += 4) { const key = (d[i] >> 4) << 8 | (d[i + 1] >> 4) << 4 | (d[i + 2] >> 4); hist.set(key, (hist.get(key) || 0) + 1); }
+  let bk = 0, bc = -1; for (const [kk, v] of hist) if (v > bc) { bc = v; bk = kk; }
+  let sr = 0, sg = 0, sb = 0, sn = 0;
+  for (let i = 0; i < d.length; i += 4) { if (((d[i] >> 4) << 8 | (d[i + 1] >> 4) << 4 | (d[i + 2] >> 4)) === bk) { sr += d[i]; sg += d[i + 1]; sb += d[i + 2]; sn++; } }
+  const bgRgb = [sr / sn, sg / sn, sb / sn], bg = rgbToLab(...bgRgb);
+  const m = new Uint8Array(N);
+  for (let p = 0; p < N; p++) { const i = p * 4; if (dE(rgbToLab(d[i], d[i + 1], d[i + 2]), bg) > 11) m[p] = 1; }
+  const r = 2, dm = new Uint8Array(N), tmp = new Uint8Array(N);
+  for (let y = 0; y < H; y++) for (let xx = 0; xx < W; xx++) { if (!m[y * W + xx]) continue; for (let q = Math.max(0, xx - r); q <= Math.min(W - 1, xx + r); q++) tmp[y * W + q] = 1; }
+  for (let y = 0; y < H; y++) for (let xx = 0; xx < W; xx++) { if (!tmp[y * W + xx]) continue; for (let q = Math.max(0, y - r); q <= Math.min(H - 1, y + r); q++) dm[q * W + xx] = 1; }
+  const seen = new Uint8Array(N), boxes = [], stack = new Int32Array(N);
+  for (let p0 = 0; p0 < N; p0++) {
+    if (!dm[p0] || seen[p0]) continue;
+    let sp = 0; stack[sp++] = p0; seen[p0] = 1; let x0 = W, y0 = H, x1 = 0, y1 = 0, cnt = 0;
+    while (sp) {
+      const p = stack[--sp]; const px = p % W, py = (p - px) / W; if (m[p]) cnt++;
+      if (px < x0) x0 = px; if (px > x1) x1 = px; if (py < y0) y0 = py; if (py > y1) y1 = py;
+      if (px > 0 && dm[p - 1] && !seen[p - 1]) { seen[p - 1] = 1; stack[sp++] = p - 1; }
+      if (px < W - 1 && dm[p + 1] && !seen[p + 1]) { seen[p + 1] = 1; stack[sp++] = p + 1; }
+      if (py > 0 && dm[p - W] && !seen[p - W]) { seen[p - W] = 1; stack[sp++] = p - W; }
+      if (py < H - 1 && dm[p + W] && !seen[p + W]) { seen[p + W] = 1; stack[sp++] = p + W; }
+    }
+    const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+    if (Math.max(bw, bh) < W * 0.12 || Math.min(bw, bh) < W * 0.05) continue; // icons, text
+    if (bw > W * 0.92) continue;                                // full-width bars / banners
+    if (bw / bh > 4.5 || bh / bw > 4.5) continue;               // lines of text, dividers
+    if (cnt / (bw * bh) < 0.12) continue;                       // sparse noise
+    if (y1 < H * 0.06) continue;                                // status bar
+    boxes.push({ x0, y0, x1, y1, area: cnt });
+  }
+  boxes.sort((a, b) => (Math.abs(a.y0 - b.y0) < W * 0.05 ? a.x0 - b.x0 : a.y0 - b.y0));
+  return boxes.slice(0, 40).map(b => {
+    const pad = Math.max(b.x1 - b.x0, b.y1 - b.y0) * 0.08;
+    const sx = Math.max(0, (b.x0 - pad) / k), sy = Math.max(0, (b.y0 - pad) / k);
+    const sw = Math.min(W0 - sx, (b.x1 - b.x0 + 1 + 2 * pad) / k), sh = Math.min(H0 - sy, (b.y1 - b.y0 + 1 + 2 * pad) / k);
+    const side = Math.round(Math.max(sw, sh)); const cv = document.createElement('canvas'); cv.width = cv.height = Math.min(side, 1000);
+    const f = cv.width / side; const cx = cv.getContext('2d');
+    cx.fillStyle = `rgb(${bgRgb.map(Math.round).join(',')})`; cx.fillRect(0, 0, cv.width, cv.height);
+    cx.drawImage(img, sx, sy, sw, sh, (side - sw) / 2 * f, (side - sh) / 2 * f, sw * f, sh * f);
+    return cv;
+  });
 }
 function dataURLToBlob(s) { const [h, b] = s.split(','); const mime = (h.match(/data:([^;]+)/) || [])[1] || 'image/jpeg'; const bin = atob(b); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return new Blob([u8], { type: mime }); }
 const _imgCache = new Map();
@@ -974,7 +1047,8 @@ function onboarding() {
     <div><b class="n">2</b><span>La IA identifica tipo, colores, estilo y nivel de abrigo. Puedes corregir lo que quieras.</span></div>
     <div><b class="n">3</b><span>En <b>Hoy</b>, elige la ocasión y te propone outfits según el tiempo.</span></div></div>
     <button class="cta accent" data-act="add">${ic('plus')} Añadir prendas</button>
-    ${canPaste() ? `<button class="btn soft full" data-act="paste">${ic('copy')} Pegar imagen copiada (p. ej. desde Fits)</button>` : ''}</div>`;
+    <button class="btn soft full" data-act="fits">${ic('download')} Importar desde Fits</button>
+    ${canPaste() ? `<button class="btn soft full" data-act="paste">${ic('copy')} Pegar imagen copiada</button>` : ''}</div>`;
 }
 
 /* ---------- Render: Hoy ---------- */
@@ -1031,7 +1105,8 @@ function viewArmario() {
   const cnt = c => its.filter(i => i.category === c).length;
   const pal = {}; its.forEach(i => (i.colors || []).slice(0, 1).forEach(c => { const n = colorName(c); pal[n] = (pal[n] || 0) + 1; }));
   const pl = Object.entries(pal).sort((a, b) => b[1] - a[1]);
-  return `<div style="display:flex;gap:8px"><div class="search" style="flex:1">${ic('search')}<input id="q" type="search" placeholder="Buscar: “azul”, “vaqueros”…" value="${esc(S.q)}" autocomplete="off"></div>${canPaste() ? `<button class="icon-btn" style="width:48px;height:48px;border-radius:16px;box-shadow:none" data-act="paste" aria-label="Pegar imagen copiada" title="Pegar imagen copiada">${ic('copy')}</button>` : ''}</div>
+  return `<div class="search">${ic('search')}<input id="q" type="search" placeholder="Buscar: “azul”, “vaqueros”, “elegante”…" value="${esc(S.q)}" autocomplete="off"></div>
+    <div class="quick"><button class="qbtn" data-act="fits">${ic('download')} Importar desde Fits</button>${canPaste() ? `<button class="qbtn" data-act="paste">${ic('copy')} Pegar imagen</button>` : ''}</div>
     <div class="chips"><button class="chip ${S.cat === 'all' ? 'on' : ''}" data-act="cat" data-id="all">Todo<span class="n">${its.length}</span></button>${CATS.filter(c => cnt(c.id)).map(c => `<button class="chip ${S.cat === c.id ? 'on' : ''}" data-act="cat" data-id="${c.id}">${c.label}<span class="n">${cnt(c.id)}</span></button>`).join('')}</div>
     ${pl.length > 1 ? `<div class="dots">${pl.map(([n]) => `<button class="dot ${S.color === n ? 'on' : ''}" style="--c:${PAL_HEX[n]}" data-act="color" data-id="${esc(n)}" aria-label="${esc(n)}" title="${esc(n)}"></button>`).join('')}</div>` : '<div style="height:12px"></div>'}
     <div id="grid-wrap">${gridHTML()}</div>`;
@@ -1107,7 +1182,7 @@ function refreshSheet() { if (!S.sheet) return; const el = $('#sheet'); const st
 function closeSheet() { S.sheet = null; S.edit = null; $('#sheet').classList.remove('open'); $('#backdrop').classList.remove('on'); document.body.classList.remove('locked'); }
 function sheetHTML() {
   const k = S.sheet.kind;
-  return k === 'item' ? itemSheet() : k === 'weather' ? weatherSheet() : k === 'settings' ? settingsSheet() : k === 'swap' ? swapSheet() : k === 'look' ? lookSheet() : k === 'pack' ? packSheet() : '';
+  return k === 'fits' ? fitsSheet() : k === 'item' ? itemSheet() : k === 'weather' ? weatherSheet() : k === 'settings' ? settingsSheet() : k === 'swap' ? swapSheet() : k === 'look' ? lookSheet() : k === 'pack' ? packSheet() : '';
 }
 const shead = (title) => `<div class="sheet-head"><h2>${title}</h2><button class="icon-btn sm" data-act="close" aria-label="Cerrar">${ic('close')}</button></div>`;
 
@@ -1135,6 +1210,28 @@ function itemSheet() {
     </div>
     <button class="cta" data-act="item-save">${ic('check')} Guardar prenda</button>
     <button class="btn danger full" data-act="item-del">${ic('trash')} Eliminar prenda</button>`;
+}
+function fitsSheet() {
+  const sh = S.sheet; const crops = sh.crops || [];
+  const catChips = `<div class="chips wrap" style="margin-top:8px"><button class="chip sm ${sh.cat === 'auto' ? 'on' : ''}" data-act="fits-cat" data-id="auto">${AI.canSee() ? 'Que la IA lo detecte' : 'Mezcladas (revisar luego)'}</button>${CATS.map(c => `<button class="chip sm ${sh.cat === c.id ? 'on' : ''}" data-act="fits-cat" data-id="${c.id}">${c.label}</button>`).join('')}</div>`;
+  if (sh.step === 'busy') return shead('Importar desde <em>Fits</em>') + `<div class="card pad" style="text-align:center;margin-top:8px"><span class="spin" style="width:28px;height:28px;color:var(--accent)"></span><h3 style="margin-top:14px">Buscando prendas…</h3><p class="note">Captura ${Math.min(sh.done + 1, sh.total)} de ${sh.total}. Estoy recortando cada prenda y quitando las repetidas.</p></div>`;
+  if (sh.step === 'review') {
+    const n = crops.filter(c => c.sel).length, dups = crops.filter(c => c.dup).length;
+    return shead('Importar desde <em>Fits</em>') + `
+      <p class="note" style="margin-top:0"><b>He encontrado ${crops.length} ${crops.length === 1 ? 'prenda' : 'prendas'}</b>${dups ? ` (${dups} ya ${dups === 1 ? 'estaba' : 'estaban'} en tu armario)` : ''}. Toca para quitar o añadir lo que quieras importar: si algo no es una prenda (iconos, tu foto de perfil…), desmárcalo.</p>
+      ${crops.length ? `<div style="display:flex;gap:8px;margin-top:10px"><button class="btn soft" style="flex:1" data-act="fits-all" data-id="1">Todas</button><button class="btn soft" style="flex:1" data-act="fits-all" data-id="0">Ninguna</button></div>
+      <div class="pickgrid">${crops.map(c => `<button class="pk ${c.sel ? 'on' : ''}" data-act="fits-toggle" data-id="${c.id}"><img src="${c.prev}" alt=""><span class="ck">${c.sel ? ic('check') : ''}</span>${c.dup ? '<span class="dup">Ya la tienes</span>' : ''}</button>`).join('')}</div>` : `<p class="hint">No he encontrado prendas. Prueba con capturas de la cuadrícula de tu armario en Fits.</p>`}
+      <div class="fl">Categoría de estas prendas</div>${catChips}
+      <button class="cta" data-act="fits-import" ${n ? '' : 'disabled'}>${ic('check')} Importar ${n} ${n === 1 ? 'prenda' : 'prendas'}</button>
+      <button class="btn full" data-act="fits-pick">${ic('plus')} Añadir más capturas</button>`;
+  }
+  return shead('Importar desde <em>Fits</em>') + `
+    <p class="note" style="margin-top:0">Fits no permite exportar el armario, así que Atelier lo importa desde <b>capturas de pantalla</b>: detecta cada prenda, la recorta y descarta las repetidas.</p>
+    <div class="steps"><div><b class="n">1</b><span>En Fits, ve a tu <b>perfil</b> y abre tus prendas. Si las agrupas por categoría, puedes importar una categoría cada vez.</span></div>
+    <div><b class="n">2</b><span>Haz <b>capturas de pantalla</b> mientras bajas por la lista. No pasa nada si se solapan: las repetidas se descartan.</span></div>
+    <div><b class="n">3</b><span>Pulsa <b>Elegir capturas</b>, selecciónalas todas y revisa lo que he encontrado antes de importar.</span></div></div>
+    <div class="fl">Categoría de estas capturas</div>${catChips}
+    <button class="cta accent" data-act="fits-pick">${ic('plus')} Elegir capturas</button>`;
 }
 function weatherSheet() {
   const w = S.sheet.draft;
@@ -1212,6 +1309,11 @@ async function pasteImages() {
     onFiles(files);
   } catch { toast('No he podido leer la imagen copiada'); }
 }
+function newItemFrom(p, extra = {}) {
+  const it = { id: uid('it'), type: 'item', name: 'Prenda nueva', category: 'top', sub: '', colors: p.colors, pattern: 'liso', styles: [], warmth: 2, formality: 2, waterproof: false, price: null, fav: false, laundry: false, wearCount: 0, lastWorn: null, createdAt: Date.now(), needsReview: true, ph: p.ph, ...extra };
+  it.name = `${({ top: 'Parte de arriba', bottom: 'Parte de abajo', dress: 'Vestido', outer: 'Abrigo', shoes: 'Calzado', accessory: 'Accesorio' })[extra.category] || 'Prenda'} ${colorName(p.colors[0]).toLowerCase()}`;
+  return it;
+}
 async function onFiles(files) {
   const arr = [...files].filter(f => /^image\//.test(f.type) || /\.(heic|heif|jpe?g|png|webp)$/i.test(f.name)).slice(0, 24);
   if (!arr.length) return;
@@ -1220,8 +1322,7 @@ async function onFiles(files) {
   for (const f of arr) {
     try {
       const p = await processFile(f); const ref = await Store.saveImage(p);
-      const it = { id: uid('it'), type: 'item', name: 'Prenda nueva', category: 'top', sub: '', colors: p.colors, pattern: 'liso', styles: [], warmth: 2, formality: 2, waterproof: false, price: null, fav: false, laundry: false, wearCount: 0, lastWorn: null, createdAt: Date.now(), needsReview: true, ...ref };
-      const guess = colorName(p.colors[0]); it.name = `Prenda ${guess.toLowerCase()}`;
+      const it = { ...newItemFrom(p), ...ref };
       if (AI.canSee()) S.analyzing.add(it.id);
       await save(it); made.push({ it, blob: p.aiBlob });
     } catch (e) { toast('No he podido leer una de las fotos'); }
@@ -1229,16 +1330,60 @@ async function onFiles(files) {
   if (!made.length) return;
   S.view !== 'armario' ? go('armario') : render();
   if (made.length === 1) openItem(made[0].it.id, true);
-  if (!AI.canSee()) return;
+  analyzeQueue(made);
+}
+async function analyzeQueue(made, keepCategory = false) {
+  if (!AI.canSee()) { made.forEach(m => S.analyzing.delete(m.it.id)); render(); return; }
   for (const m of made) {
     try {
       const r = await analyzeBlob(m.blob, m.it.colors);
+      if (keepCategory) delete r.category;
       const cur = getDoc(m.it.id); if (!cur) continue;
       await save({ ...clone(cur), ...r, needsReview: false });
       if (S.edit && S.edit.id === m.it.id) { const t = S.edit._touched || []; const merged = { ...S.edit }; for (const k of Object.keys(r)) if (!t.includes(k)) merged[k] = r[k]; merged.needsReview = false; S.edit = merged; }
     } catch (e) { made.forEach(x => S.analyzing.delete(x.it.id)); aiError(e); render(); if (S.sheet && S.sheet.kind === 'item') refreshSheet(); break; }
     S.analyzing.delete(m.it.id); render(); if (S.sheet && S.sheet.kind === 'item' && S.edit && S.edit.id === m.it.id) refreshSheet();
   }
+}
+/* ---------- Import from Fits ---------- */
+async function fitsScan(files) {
+  const arr = [...files].filter(f => /^image\//.test(f.type) || /\.(heic|heif|jpe?g|png|webp)$/i.test(f.name)).slice(0, 30);
+  if (!arr.length || !S.sheet || S.sheet.kind !== 'fits') return;
+  const sh = S.sheet; sh.step = 'busy'; sh.total = arr.length; sh.done = 0; refreshSheet();
+  const known = items().filter(i => i.ph).map(i => ({ ph: i.ph, lab: rgbToLab(...hexToRgb((i.colors || [])[0] || '#888888')) })); const crops = sh.crops || [];
+  for (const f of arr) {
+    const url = URL.createObjectURL(f);
+    try {
+      const img = await loadImg(url);
+      for (const cv of segmentGarments(img)) {
+        const ph = dhash(cv); const col = extractColors(cv)[0]; const lab = rgbToLab(...hexToRgb(col));
+        if (crops.some(c => hamming(c.ph, ph) <= 4 && dE(c.lab, lab) < 7)) continue;
+        const dup = known.some(k => hamming(k.ph, ph) <= 6 && dE(k.lab, lab) < 10);
+        crops.push({ id: uid('c'), cv, ph, lab, dup, sel: !dup, prev: drawTo(cv, 220).toDataURL('image/jpeg', 0.75) });
+      }
+    } catch { }
+    finally { URL.revokeObjectURL(url); }
+    sh.done++; if (S.sheet === sh) refreshSheet();
+    await sleep(0);
+  }
+  if (S.sheet !== sh) return;
+  sh.crops = crops; sh.step = 'review'; refreshSheet();
+}
+async function fitsImport() {
+  const sh = S.sheet; const sel = (sh.crops || []).filter(c => c.sel); if (!sel.length) { toast('Selecciona al menos una prenda'); return; }
+  const cat = sh.cat !== 'auto' ? sh.cat : null;
+  closeSheet(); go('armario'); toast(`Importando ${sel.length} prendas…`);
+  const made = [];
+  for (const c of sel) {
+    try {
+      const p = await processSource(c.cv); p.ph = c.ph; const ref = await Store.saveImage(p);
+      const it = { ...newItemFrom(p, cat ? { category: cat } : {}), ...ref, source: 'fits', needsReview: !cat };
+      if (AI.canSee()) S.analyzing.add(it.id);
+      await save(it); made.push({ it, blob: p.aiBlob });
+    } catch (e) { if (e && e.code === 'quota_exceeded') break; }
+  }
+  render(); toast(`${made.length} prendas importadas de Fits`);
+  analyzeQueue(made, !!cat);
 }
 function openItem(id, isNew = false) { const it = getDoc(id); if (!it) return; S.edit = { ...clone(it), _touched: [] }; openSheet('item', { isNew }); }
 const touch = f => { if (S.edit) { S.edit._touched = [...new Set([...(S.edit._touched || []), f])]; } };
@@ -1353,6 +1498,12 @@ const A = {
   'clear-anchor': () => { S.anchor = null; render(); },
   generate: () => generate(),
   paste: () => pasteImages(),
+  fits: () => openSheet('fits', { step: 'intro', cat: 'auto', crops: [] }),
+  'fits-pick': () => $('#fitsin').click(),
+  'fits-cat': el => { S.sheet.cat = el.dataset.id; refreshSheet(); },
+  'fits-toggle': el => { const c = (S.sheet.crops || []).find(x => x.id === el.dataset.id); if (c) { c.sel = !c.sel; refreshSheet(); } },
+  'fits-all': el => { (S.sheet.crops || []).forEach(c => c.sel = el.dataset.id === '1'); refreshSheet(); },
+  'fits-import': () => fitsImport(),
   dislike: async el => {
     const i = +el.dataset.i; const o = S.results[i]; if (!o) return;
     const card = $('#look-' + CSS.escape(o.id)); if (card) card.classList.add('out');
@@ -1486,6 +1637,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'filein') { const fs = [...t.files]; t.value = ''; onFiles(fs); return; }
+  if (t.id === 'fitsin') { const fs = [...t.files]; t.value = ''; fitsScan(fs); return; }
   if (S.sheet && S.sheet.kind === 'item' && S.edit && t.dataset.color != null) {
     const cols = [...(S.edit.colors || [])]; if (t.dataset.color === 'new') cols.push(t.value.toLowerCase()); else cols[+t.dataset.color] = t.value.toLowerCase();
     S.edit.colors = cols.slice(0, 3); touch('colors'); refreshSheet();
