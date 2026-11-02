@@ -569,7 +569,7 @@ function extractColors(img) {
 async function processSource(img, cut = false) {
   if (cut) {
     const big = drawTo(img, 900, true); const blob = await new Promise(r => big.toBlob(b => r(b), 'image/png'));
-    const dataURL = drawTo(img, 480, true).toDataURL('image/png');
+    const dataURL = drawTo(img, 640, true).toDataURL('image/png');
     const aiBlob = await canvasBlob(drawTo(img, 768), 0.82);
     return { blob, dataURL, aiBlob, colors: extractColors(img), ph: dhash(img), cut: true };
   }
@@ -692,32 +692,50 @@ function colorAdj(name, g) {
   }).join(' ');
 }
 function garmentName(sub, g, hex) { return cap(sub) + ' ' + colorAdj(colorName(hex), g || 'm'); }
-/* keep only the main garment: drop app UI remnants, text and specks left around it */
+/* keep only the main garment: cut thin bridges (app arrows, buttons stuck to a sleeve), drop UI remnants and specks */
+function morph(src, w, h, r, max) {
+  const t = new Uint8Array(w * h), o = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { let v = max ? 0 : 1; for (let q = Math.max(0, x - r); q <= Math.min(w - 1, x + r); q++) { const s = src[y * w + q]; if (max ? s : !s) { v = max ? 1 : 0; break; } } if (!max && (x < r || x >= w - r)) v = 0; t[y * w + x] = v; }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { let v = max ? 0 : 1; for (let q = Math.max(0, y - r); q <= Math.min(h - 1, y + r); q++) { const s = t[q * w + x]; if (max ? s : !s) { v = max ? 1 : 0; break; } } if (!max && (y < r || y >= h - r)) v = 0; o[y * w + x] = v; }
+  return o;
+}
 function keepMain(c) {
   const w = c.width, h = c.height, ctx = c.getContext('2d'); const id = ctx.getImageData(0, 0, w, h), d = id.data;
-  const k = Math.min(1, 320 / Math.max(w, h)), sw = Math.max(1, Math.round(w * k)), sh = Math.max(1, Math.round(h * k)), N = sw * sh;
+  const k = Math.min(1, 480 / Math.max(w, h)), sw = Math.max(1, Math.round(w * k)), sh = Math.max(1, Math.round(h * k)), N = sw * sh;
   const m = new Uint8Array(N);
-  for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) { const X = Math.min(w - 1, Math.floor(x / k)), Y = Math.min(h - 1, Math.floor(y / k)); if (d[(Y * w + X) * 4 + 3] > 150) m[y * sw + x] = 1; }
+  for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) { const X = Math.min(w - 1, Math.floor((x + .5) / k)), Y = Math.min(h - 1, Math.floor((y + .5) / k)); if (d[(Y * w + X) * 4 + 3] > 128) m[y * sw + x] = 1; }
+  let fg = 0; for (let i = 0; i < N; i++) fg += m[i]; if (!fg) return c;
+  // size of the object decides how thick a "bridge" must be to survive
+  let x0 = sw, y0 = sh, x1 = 0, y1 = 0; for (let i = 0; i < N; i++) if (m[i]) { const x = i % sw, y = (i - x) / sw; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  const re = Math.max(2, Math.round(Math.max(x1 - x0, y1 - y0) * 0.013));
+  const er = morph(m, sw, sh, re, false);
   const lab = new Int32Array(N), areas = [0], bb = [null], stack = new Int32Array(N); let nl = 0;
   for (let p0 = 0; p0 < N; p0++) {
-    if (!m[p0] || lab[p0]) continue; nl++; let sp = 0, a = 0, x0 = sw, y0 = sh, x1 = 0, y1 = 0; stack[sp++] = p0; lab[p0] = nl;
-    while (sp) { const p = stack[--sp]; a++; const px = p % sw, py = (p - px) / sw; if (px < x0) x0 = px; if (px > x1) x1 = px; if (py < y0) y0 = py; if (py > y1) y1 = py;
-      if (px > 0 && m[p - 1] && !lab[p - 1]) { lab[p - 1] = nl; stack[sp++] = p - 1; }
-      if (px < sw - 1 && m[p + 1] && !lab[p + 1]) { lab[p + 1] = nl; stack[sp++] = p + 1; }
-      if (p >= sw && m[p - sw] && !lab[p - sw]) { lab[p - sw] = nl; stack[sp++] = p - sw; }
-      if (p < N - sw && m[p + sw] && !lab[p + sw]) { lab[p + sw] = nl; stack[sp++] = p + sw; } }
-    areas.push(a); bb.push([x0, y0, x1, y1]);
+    if (!er[p0] || lab[p0]) continue; nl++; let sp = 0, a = 0, bx0 = sw, by0 = sh, bx1 = 0, by1 = 0; stack[sp++] = p0; lab[p0] = nl;
+    while (sp) { const p = stack[--sp]; a++; const px = p % sw, py = (p - px) / sw; if (px < bx0) bx0 = px; if (px > bx1) bx1 = px; if (py < by0) by0 = py; if (py > by1) by1 = py;
+      if (px > 0 && er[p - 1] && !lab[p - 1]) { lab[p - 1] = nl; stack[sp++] = p - 1; }
+      if (px < sw - 1 && er[p + 1] && !lab[p + 1]) { lab[p + 1] = nl; stack[sp++] = p + 1; }
+      if (p >= sw && er[p - sw] && !lab[p - sw]) { lab[p - sw] = nl; stack[sp++] = p - sw; }
+      if (p < N - sw && er[p + sw] && !lab[p + sw]) { lab[p + sw] = nl; stack[sp++] = p + sw; } }
+    areas.push(a); bb.push([bx0, by0, bx1, by1]);
   }
-  if (nl === 0) return c;
-  // main = biggest blob, weighted towards solid, non-flat shapes (a wide thin bar is UI, not a garment)
-  const score = i => { const [x0, y0, x1, y1] = bb[i]; const bw = x1 - x0 + 1, bh = y1 - y0 + 1; const flat = Math.min(bw, bh) / Math.max(bw, bh); return areas[i] * (flat < 0.22 ? 0.25 : 1); };
+  if (!nl) return c;
+  const score = i => { const [a0, b0, a1, b1] = bb[i]; const bw = a1 - a0 + 1, bh = b1 - b0 + 1; return areas[i] * (Math.min(bw, bh) / Math.max(bw, bh) < 0.22 ? 0.25 : 1); };
   let main = 1; for (let i = 2; i <= nl; i++) if (score(i) > score(main)) main = i;
   const M = bb[main], md = Math.max(M[2] - M[0], M[3] - M[1]) + 1;
-  const gap = i => { const B = bb[i]; const dx = Math.max(0, B[0] - M[2], M[0] - B[2]), dy = Math.max(0, B[1] - M[3], M[1] - B[3]); return Math.max(dx, dy); };
+  const gap = i => { const B = bb[i]; return Math.max(0, B[0] - M[2], M[0] - B[2], B[1] - M[3], M[1] - B[3]); };
   const keepL = new Uint8Array(nl + 1); keepL[main] = 1;
   for (let i = 1; i <= nl; i++) if (i !== main && areas[i] >= areas[main] * 0.2 && gap(i) <= md * 0.25) keepL[i] = 1;
-  const keep = new Uint8Array(N); const r = 3;
-  for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) { if (!keepL[lab[y * sw + x]]) continue; for (let yy = Math.max(0, y - r); yy <= Math.min(sh - 1, y + r); yy++) for (let xx = Math.max(0, x - r); xx <= Math.min(sw - 1, x + r); xx++) keep[yy * sw + xx] = 1; }
+  // give every original pixel to the nearest eroded blob (walking only through the object): bridges go to whoever is closer
+  const own = new Int32Array(N), q = new Int32Array(N); let qh = 0, qt = 0;
+  for (let i = 0; i < N; i++) if (lab[i]) { own[i] = lab[i]; q[qt++] = i; }
+  while (qh < qt) { const p = q[qh++], px = p % sw, o = own[p];
+    if (px > 0 && m[p - 1] && !own[p - 1]) { own[p - 1] = o; q[qt++] = p - 1; }
+    if (px < sw - 1 && m[p + 1] && !own[p + 1]) { own[p + 1] = o; q[qt++] = p + 1; }
+    if (p >= sw && m[p - sw] && !own[p - sw]) { own[p - sw] = o; q[qt++] = p - sw; }
+    if (p < N - sw && m[p + sw] && !own[p + sw]) { own[p + sw] = o; q[qt++] = p + sw; } }
+  const seed = new Uint8Array(N); for (let i = 0; i < N; i++) if (own[i] && keepL[own[i]]) seed[i] = 1;
+  const keep = morph(seed, sw, sh, 2, true);
   for (let Y = 0; Y < h; Y++) { const y = Math.min(sh - 1, Math.floor(Y * k)); for (let X = 0; X < w; X++) { if (!keep[y * sw + Math.min(sw - 1, Math.floor(X * k))]) d[(Y * w + X) * 4 + 3] = 0; } }
   ctx.putImageData(id, 0, 0); return c;
 }
@@ -764,7 +782,7 @@ const Vision = {
   async rawFrom(canvas) { const T = this.T; if (T.RawImage.fromCanvas) return T.RawImage.fromCanvas(canvas); return T.RawImage.fromURL(canvas.toDataURL('image/png')); },
   async removeBg(src) {
     await this.load(); const T = this.T;
-    const base = drawTo(src, 1024);
+    const base = drawTo(src, 2048);
     const { pixel_values } = await this.rp(await this.rawFrom(base));
     const { output } = await this.rm({ input: pixel_values });
     const mask = await T.RawImage.fromTensor(output[0].mul(255).to('uint8')).resize(base.width, base.height);
@@ -790,14 +808,14 @@ function fieldsFromClass(cls, hex) {
   if (d[3]) f.waterproof = true; return f;
 }
 async function cleanOldCutouts() {
-  const list = items().filter(i => i.cut && (i.clean || 0) < 2 && i.img && i.img.startsWith('data:'));
+  const list = items().filter(i => i.cut && (i.clean || 0) < 3 && i.img && i.img.startsWith('data:'));
   if (!list.length) return; let n = 0;
   for (const it of list) {
     try {
       const img = await loadImg(it.img); const cv = trimAlpha(keepMain(drawTo(img, 1024, true)));
       const cur = getDoc(it.id); if (!cur) continue;
-      if (cv) { const p = await processSource(cv, true); await save({ ...clone(cur), img: p.dataURL, colors: p.colors, ph: p.ph, clean: 2 }); n++; }
-      else await save({ ...clone(cur), clean: 2 });
+      if (cv) { const p = await processSource(cv, true); await save({ ...clone(cur), img: p.dataURL, colors: p.colors, ph: p.ph, clean: 3 }); n++; }
+      else await save({ ...clone(cur), clean: 3 });
     } catch { }
     await sleep(30);
   }
@@ -810,12 +828,12 @@ async function visionQueue(made, keepCategory = false) {
   for (const m of made) {
     try {
       const u = URL.createObjectURL(m.src); let img; try { img = await loadImg(u); } finally { setTimeout(() => URL.revokeObjectURL(u), 5000); }
-      const cut = hasAlpha(img) ? trimAlpha(keepMain(drawTo(img, 1024, true))) : await Vision.removeBg(img);
+      const cut = hasAlpha(img) ? trimAlpha(keepMain(drawTo(img, 2048, true))) : await Vision.removeBg(img);
       const cur0 = getDoc(m.it.id); if (!cur0) { S.analyzing.delete(m.it.id); continue; }
       const srcCanvas = cut || drawTo(img, 1000);
       const cls = await Vision.classify(srcCanvas);
       const upd = { ...clone(getDoc(m.it.id)) };
-      if (cut) { if (!upd.cut && upd.img && Store.mode !== 'cloud') upd.imgOrig = upd.img; const p = await processSource(cut, true); const ref = await Store.saveImage(p); Object.assign(upd, ref, { colors: p.colors, ph: p.ph, cut: true, clean: 2 }); m.blob = p.aiBlob; }
+      if (cut) { if (!upd.cut && upd.img && Store.mode !== 'cloud') upd.imgOrig = m.src && m.src.size < 2.5e6 ? await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = () => r(upd.img); fr.readAsDataURL(m.src); }) : upd.img; const p = await processSource(cut, true); const ref = await Store.saveImage(p); Object.assign(upd, ref, { colors: p.colors, ph: p.ph, cut: true, clean: 3 }); m.blob = p.aiBlob; }
       const t = (S.edit && S.edit.id === upd.id && S.edit._touched) || [];
       if (cls) {
         const f = fieldsFromClass(cls, (upd.colors || [])[0]);
