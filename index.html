@@ -720,12 +720,12 @@ function keepMain(c) {
     areas.push(a); bb.push([bx0, by0, bx1, by1]);
   }
   if (!nl) return c;
-  const score = i => { const [a0, b0, a1, b1] = bb[i]; const bw = a1 - a0 + 1, bh = b1 - b0 + 1; return areas[i] * (Math.min(bw, bh) / Math.max(bw, bh) < 0.22 ? 0.25 : 1); };
+  const score = i => { const [a0, b0, a1, b1] = bb[i]; const bw = a1 - a0 + 1, bh = b1 - b0 + 1, fl = Math.min(bw, bh) / Math.max(bw, bh); let v = areas[i] * (fl < 0.2 ? 0.12 : fl < 0.3 ? 0.4 : 1); if (sh > sw * 1.4 && (b1 > sh * 0.88 || a0 < sh * 0.06 && b0 < sh * 0.06)) v *= 0.15; return v; };
   let main = 1; for (let i = 2; i <= nl; i++) if (score(i) > score(main)) main = i;
   const M = bb[main], md = Math.max(M[2] - M[0], M[3] - M[1]) + 1;
   const gap = i => { const B = bb[i]; return Math.max(0, B[0] - M[2], M[0] - B[2], B[1] - M[3], M[1] - B[3]); };
   const keepL = new Uint8Array(nl + 1); keepL[main] = 1;
-  for (let i = 1; i <= nl; i++) if (i !== main && areas[i] >= areas[main] * 0.2 && gap(i) <= md * 0.25) keepL[i] = 1;
+  for (let i = 1; i <= nl; i++) if (i !== main && areas[i] >= areas[main] * 0.2 && Math.max(0, gap(i) - 2 * re) <= (md + 2 * re) * 0.3) keepL[i] = 1;
   // give every original pixel to the nearest eroded blob (walking only through the object): bridges go to whoever is closer
   const own = new Int32Array(N), q = new Int32Array(N); let qh = 0, qt = 0;
   for (let i = 0; i < N; i++) if (lab[i]) { own[i] = lab[i]; q[qt++] = i; }
@@ -747,7 +747,7 @@ function trimAlpha(c) {
   const w = c.width, h = c.height, d = c.getContext('2d').getImageData(0, 0, w, h).data;
   let x0 = w, y0 = h, x1 = -1, y1 = -1, n = 0;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > 40) { n++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-  if (x1 < 0 || n < w * h * 0.01 || n > w * h * 0.985) return null;
+  if (x1 < 0 || n < w * h * 0.002 || n > w * h * 0.985) return null;
   const bw = x1 - x0 + 1, bh = y1 - y0 + 1, side = Math.round(Math.max(bw, bh) * 1.12);
   const o = document.createElement('canvas'); o.width = o.height = side;
   o.getContext('2d').drawImage(c, x0, y0, bw, bh, (side - bw) / 2, (side - bh) / 2, bw, bh);
