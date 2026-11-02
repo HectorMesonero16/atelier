@@ -1,0 +1,1526 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Atelier">
+<meta name="theme-color" content="#F2EDE5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#11100E" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Atelier · tu armario con IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F2EDE5; --surface:#FFFDF9; --surface-2:#E9E2D6; --surface-3:#DED5C6;
+  --ink:#1C1A17; --muted:#7A736A; --line:rgba(28,26,23,.09);
+  --accent:#B9502C; --accent-soft:rgba(185,80,44,.12); --ok:#2F6B4F; --danger:#B3352B;
+  --shadow:0 1px 2px rgba(28,26,23,.05),0 10px 30px rgba(28,26,23,.06);
+  --r:24px; --display:'Fraunces',Georgia,'Times New Roman',serif;
+  --ui:'Manrope',-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif;
+  --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#11100E; --surface:#1B1A17; --surface-2:#26241F; --surface-3:#322F29;
+  --ink:#F3EEE7; --muted:#9E978D; --line:rgba(255,255,255,.08);
+  --accent:#E07A50; --accent-soft:rgba(224,122,80,.16); --ok:#6FBF95; --danger:#E26B5F;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.25);
+}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body{min-height:100vh;min-height:100dvh;overscroll-behavior-y:none}
+body.locked{overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit}
+img{display:block}
+#app{max-width:560px;margin:0 auto;padding:calc(var(--sat) + 16px) 18px calc(var(--sab) + 120px)}
+svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:4px 0 20px}
+.eyebrow{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700}
+h1{font-family:var(--display);font-weight:500;font-size:40px;line-height:1.02;margin:6px 0 0;letter-spacing:-.025em}
+h1 em,h2 em{font-style:italic;color:var(--accent)}
+h2{font-family:var(--display);font-weight:500;font-size:26px;margin:0;letter-spacing:-.02em}
+h3{font-family:var(--display);font-weight:500;font-size:21px;margin:0;letter-spacing:-.01em;line-height:1.15}
+.icon-btn{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;flex:none;box-shadow:var(--shadow)}
+.icon-btn.sm{width:36px;height:36px;box-shadow:none}
+.sec-label{font-size:13px;font-weight:800;margin:22px 0 10px;display:flex;align-items:center;gap:8px}
+.sec-label .opt,.opt{font-weight:600;color:var(--muted);font-size:12px}
+.sec-label.row{justify-content:space-between}
+.src{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:4px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -18px;padding:2px 18px 4px}
+.chips::-webkit-scrollbar{display:none}
+.chips.wrap{flex-wrap:wrap;overflow:visible;margin:0;padding:0}
+.chip{flex:none;padding:9px 15px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-weight:700;font-size:14px;white-space:nowrap;transition:transform .15s,background .2s}
+.chip:active{transform:scale(.96)}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip.sm{padding:7px 12px;font-size:13px}
+.chip .n{opacity:.55;margin-left:5px;font-weight:700}
+.card{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);border:1px solid var(--line)}
+.pad{padding:18px}
+.hint{color:var(--muted);font-size:13px;text-align:center;margin:18px 0 0}
+
+/* weather */
+.weather{all:unset;box-sizing:border-box;display:block;width:100%;cursor:pointer;position:relative;overflow:hidden;padding:18px 20px 16px;border-radius:28px;color:#221d17;box-shadow:var(--shadow);isolation:isolate}
+.weather::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 80% at 100% 0%,rgba(255,255,255,.45),transparent 55%);z-index:-1}
+.w-clear{background:linear-gradient(140deg,#FBE3A6 0%,#F4B566 50%,#EC8A5E 100%)}
+.w-partly{background:linear-gradient(140deg,#F7E6C2 0%,#D8D7CF 55%,#AFC2D3 100%)}
+.w-cloudy{background:linear-gradient(140deg,#E3E4E3 0%,#C3C8CD 55%,#A2ABB5 100%)}
+.w-fog{background:linear-gradient(140deg,#ECE9E3 0%,#D3CFC6 60%,#BBB6AC 100%)}
+.w-wind{background:linear-gradient(140deg,#DDEDEA 0%,#B4D1D2 55%,#8DB2B8 100%)}
+.w-rain{background:linear-gradient(140deg,#A9C0D2 0%,#7896B0 55%,#577691 100%);color:#fff}
+.w-storm{background:linear-gradient(140deg,#6D7489 0%,#454C62 55%,#2A3043 100%);color:#fff}
+.w-snow{background:linear-gradient(140deg,#F6F9FC 0%,#D9E4EE 55%,#BACBDB 100%)}
+.w-night{background:linear-gradient(140deg,#39426A 0%,#252C4D 55%,#151a31 100%)!important;color:#fff}
+.w-top{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:700;opacity:.85}
+.w-top span{display:flex;align-items:center;gap:5px}
+.w-top{gap:10px}.w-top>span:first-child{min-width:0;overflow:hidden}.w-top>span:first-child>svg{flex:none}.w-top b{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.w-top svg.i{width:16px;height:16px}
+.w-src{flex:none;white-space:nowrap;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.35)}
+.w-rain .w-src,.w-storm .w-src,.w-night .w-src{background:rgba(255,255,255,.16)}
+.w-main{display:flex;align-items:center;justify-content:space-between;margin:6px 0 2px}
+.w-temp{font-family:var(--display);font-size:84px;line-height:1;font-weight:400;letter-spacing:-.05em}
+.w-ico svg{width:78px;height:78px;stroke:currentColor;fill:none;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round;opacity:.9}
+.w-cond{font-weight:700;font-size:15px}
+.w-stats{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:13px;font-weight:700;opacity:.88}
+.w-stats span{display:flex;align-items:center;gap:4px}
+.w-stats svg.i{width:15px;height:15px}
+.w-advice{margin-top:14px;padding-top:12px;border-top:1px solid rgba(0,0,0,.08);font-size:13.5px;font-weight:600;display:flex;gap:8px;align-items:center}
+.w-rain .w-advice,.w-storm .w-advice,.w-night .w-advice{border-color:rgba(255,255,255,.18)}
+.layers{display:flex;gap:3px}
+.layers i{width:7px;height:16px;border-radius:3px;background:currentColor;opacity:.22}
+.layers i.on{opacity:.9}
+
+/* CTA */
+.cta{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:18px;border-radius:20px;background:var(--ink);color:var(--bg);font-weight:800;font-size:16.5px;border:0;margin-top:22px;box-shadow:0 10px 30px rgba(0,0,0,.14);transition:transform .15s}
+.cta:active{transform:scale(.98)}
+.cta svg.i{width:21px;height:21px}
+.cta[disabled]{opacity:.85}
+.cta.accent{background:var(--accent);color:#fff}
+.cta-sub{text-align:center;font-size:12px;color:var(--muted);margin-top:9px;font-weight:600}
+.spin{width:18px;height:18px;border-radius:50%;border:2.2px solid currentColor;border-right-color:transparent;animation:rot .8s linear infinite;display:inline-block;flex:none}
+.spin.sm{width:12px;height:12px;border-width:2px}
+@keyframes rot{to{transform:rotate(360deg)}}
+.shimmer{background:linear-gradient(90deg,var(--surface-2) 0%,var(--surface) 50%,var(--surface-2) 100%);background-size:200% 100%;animation:sh 1.3s ease-in-out infinite}
+@keyframes sh{0%{background-position:100% 0}100%{background-position:-100% 0}}
+
+/* anchor */
+.anchor{display:flex;align-items:center;gap:12px;margin-top:18px;padding:10px 10px 10px 10px;border-radius:20px;background:var(--accent-soft);border:1px solid var(--line)}
+.anchor img{width:52px;height:52px;border-radius:14px;object-fit:cover}
+.anchor>div{flex:1;min-width:0}
+.anchor b{display:block;font-size:15px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* looks */
+.looks-list{display:flex;flex-direction:column;gap:16px}
+.look{padding:12px 12px 14px;animation:rise .45s cubic-bezier(.2,.8,.2,1) both}
+.look:nth-child(2){animation-delay:.07s}.look:nth-child(3){animation-delay:.14s}.look:nth-child(4){animation-delay:.21s}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.look.out{animation:fade .3s forwards}
+@keyframes fade{to{opacity:0;transform:scale(.96)}}
+.collage{display:grid;grid-template-columns:1.25fr 1fr;grid-auto-rows:92px;gap:6px;grid-auto-flow:dense}
+.tile{all:unset;position:relative;border-radius:16px;overflow:hidden;background:var(--surface-2);cursor:pointer}
+.tile img{width:100%;height:100%;object-fit:cover}
+.tile .lbl{position:absolute;left:7px;bottom:7px;font-size:10.5px;font-weight:800;padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.82);color:#1c1a17;letter-spacing:.02em}
+.tile .sw-ic{position:absolute;right:7px;top:7px;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.82);color:#1c1a17;display:grid;place-items:center}
+.tile .sw-ic svg.i{width:14px;height:14px}
+.look-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin:14px 4px 0}
+.palette{display:flex;align-items:center;gap:4px;margin-top:8px}
+.palette span{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--surface);box-shadow:0 0 0 1px var(--line);margin-right:-8px}
+.palette em{font-style:normal;font-size:12px;font-weight:700;color:var(--muted);margin-left:14px}
+.ring{position:relative;width:50px;height:50px;flex:none}
+.ring svg{width:50px;height:50px;transform:rotate(-90deg)}
+.ring b{position:absolute;inset:0;display:grid;place-items:center;font-size:14px;font-weight:800}
+.why{margin:10px 4px 0;font-size:14.5px;line-height:1.5;color:var(--ink);opacity:.86}
+.tip{margin:10px 4px 0;font-size:13px;line-height:1.45;color:var(--muted);display:flex;gap:7px}
+.tip svg.i{width:16px;height:16px;color:var(--accent);margin-top:1px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin:12px 4px 0}
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:6px 10px;border-radius:999px;background:var(--surface-2)}
+.tag svg.i{width:14px;height:14px}
+.look-actions{display:flex;gap:8px;margin-top:14px}
+.look-actions .btn{padding:13px 10px;font-size:14px}
+.btn{white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:13px 16px;border-radius:15px;border:1px solid var(--line);background:var(--surface);font-weight:800;font-size:14.5px;transition:transform .12s}
+.btn:active{transform:scale(.97)}
+.btn svg.i{width:18px;height:18px}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink);flex:1.2}
+.btn.soft{background:var(--surface-2);border-color:transparent;flex:1}
+.btn.ghost{background:transparent;flex:none;width:50px;padding:13px 0}
+.btn.danger{color:var(--danger);background:transparent}
+.btn.full{width:100%;margin-top:10px}
+.btn.done{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn[disabled]{opacity:.5}
+
+/* wardrobe */
+.search{display:flex;align-items:center;gap:10px;padding:0 14px;height:48px;border-radius:16px;background:var(--surface);border:1px solid var(--line);margin-bottom:12px;color:var(--muted)}
+.search input{flex:1;border:0;background:none;outline:none;font-size:16px;color:var(--ink);min-width:0}
+.dots{display:flex;gap:9px;overflow-x:auto;scrollbar-width:none;margin:12px -18px 16px;padding:3px 18px}
+.dots::-webkit-scrollbar{display:none}
+.dot{flex:none;width:30px;height:30px;border-radius:50%;background:var(--c);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line)}
+.dot.on{box-shadow:0 0 0 2px var(--ink)}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+@media (min-width:520px){.grid{grid-template-columns:repeat(3,1fr)}}
+.item{all:unset;cursor:pointer;display:block;position:relative;border-radius:22px;overflow:hidden;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);transition:transform .15s}
+.item:active{transform:scale(.98)}
+.item .ph{position:relative;aspect-ratio:4/5;background:var(--surface-2)}
+.item .ph img{width:100%;height:100%;object-fit:cover}
+.item .meta{padding:10px 12px 12px;display:flex;flex-direction:column;gap:2px}
+.item .meta b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .meta span{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sw{display:flex;gap:4px;margin-top:6px}
+.sw em{width:13px;height:13px;border-radius:50%;box-shadow:0 0 0 1px var(--line)}
+.badge{position:absolute;left:8px;top:8px;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:800;padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.9);color:#1c1a17}
+.badge svg.i{width:13px;height:13px}
+.badge.ai{background:var(--ink);color:var(--bg)}
+.badge.warn{background:#F3D27A}
+.fav{position:absolute;right:8px;top:8px;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.9);display:grid;place-items:center;color:var(--accent)}
+.fav svg.i{width:15px;height:15px;fill:currentColor}
+.fab{position:fixed;z-index:25;right:max(18px,calc(50% - 262px));bottom:calc(var(--sab) + 96px);width:60px;height:60px;border-radius:22px;border:0;background:var(--accent);color:#fff;display:grid;place-items:center;box-shadow:0 12px 30px rgba(185,80,44,.4);transition:transform .15s}
+.fab:active{transform:scale(.94)}
+.fab svg.i{width:26px;height:26px;stroke-width:2.2}
+.fab[hidden]{display:none}
+.empty-small{color:var(--muted);text-align:center;padding:40px 0;font-weight:600}
+
+/* onboarding */
+.onb{padding:26px 22px;text-align:center;margin-top:18px}
+.onb svg.big{width:92px;height:92px;stroke:var(--accent);fill:none;stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round}
+.onb p{color:var(--muted);line-height:1.5;font-size:14.5px;margin:10px 0 0}
+.steps{text-align:left;margin:20px 0 6px;display:flex;flex-direction:column;gap:12px}
+.steps div{display:flex;gap:12px;align-items:flex-start;font-size:14px;line-height:1.45}
+.steps b.n{flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-size:13px}
+
+/* tabbar */
+.tabbar{position:fixed;z-index:30;left:50%;transform:translateX(-50%);bottom:calc(var(--sab) + 12px);width:min(calc(100% - 28px),430px);display:flex;gap:4px;padding:7px;border-radius:28px;background:color-mix(in srgb,var(--surface) 80%,transparent);-webkit-backdrop-filter:blur(20px) saturate(1.7);backdrop-filter:blur(20px) saturate(1.7);border:1px solid var(--line);box-shadow:0 12px 40px rgba(0,0,0,.12)}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 0 8px;border-radius:21px;font-size:11px;font-weight:800;color:var(--muted);background:none;border:0;transition:background .2s,color .2s}
+.tab svg.i{width:22px;height:22px}
+.tab.on{color:var(--ink);background:var(--surface-2)}
+
+/* sheet */
+.backdrop{position:fixed;inset:0;z-index:40;background:rgba(15,12,10,.38);opacity:0;pointer-events:none;transition:opacity .3s}
+.backdrop.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;z-index:41;left:0;right:0;bottom:0;margin:0 auto;max-width:560px;max-height:calc(100dvh - var(--sat) - 24px);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:var(--bg);border-radius:30px 30px 0 0;padding:8px 18px calc(var(--sab) + 26px);transform:translateY(105%);transition:transform .38s cubic-bezier(.2,.85,.2,1);box-shadow:0 -10px 40px rgba(0,0,0,.18)}
+.sheet:not(.open){visibility:hidden;transition:transform .38s cubic-bezier(.2,.85,.2,1),visibility 0s .38s}
+.sheet.open{transform:none}
+.grab{width:42px;height:5px;border-radius:3px;background:var(--surface-3);margin:4px auto 14px}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px}
+.fl{display:block;font-size:13px;font-weight:800;margin:16px 0 0}
+.fl>input[type=text],.fl>input[type=number],.fl>input[type=search],.fl>select,.fl textarea,.inp{display:block;width:100%;margin-top:7px;padding:13px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface);font-size:16px;font-weight:600;outline:none;-webkit-appearance:none;appearance:none}
+.fl textarea{min-height:90px;font-size:13px;font-family:ui-monospace,Menlo,monospace;font-weight:500}
+.fl input:focus,.fl select:focus,.inp:focus{border-color:var(--accent)}
+.fl .val{float:right;color:var(--accent);font-weight:800}
+input[type=range]{width:100%;margin-top:12px;accent-color:var(--accent);height:28px}
+.row-toggle{display:flex!important;align-items:center;justify-content:space-between;gap:10px;padding:14px;border-radius:16px;background:var(--surface);border:1px solid var(--line)}
+.tgl{-webkit-appearance:none;appearance:none;width:50px;height:30px;border-radius:999px;background:var(--surface-3);position:relative;transition:background .2s;flex:none;margin:0}
+.tgl::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.2);transition:transform .2s}
+.tgl:checked{background:var(--ok)}
+.tgl:checked::after{transform:translateX(20px)}
+.seg6{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.seg6 button,.seg button{padding:11px 6px;border-radius:13px;border:1px solid var(--line);background:var(--surface);font-weight:700;font-size:13.5px}
+.seg6 button.on,.seg button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.seg{display:flex;gap:6px;padding:5px;border-radius:17px;background:var(--surface-2);margin-bottom:16px}
+.seg button{flex:1;border:0;background:transparent}
+.seg button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.ed-photo{position:relative;border-radius:22px;overflow:hidden;background:var(--surface-2);aspect-ratio:1/1;max-height:340px;margin:0 auto;width:100%}
+.ed-photo img{width:100%;height:100%;object-fit:contain}
+.ai-scan{position:absolute;inset:auto 12px 12px 12px;display:flex;gap:10px;align-items:center;padding:12px 14px;border-radius:14px;background:rgba(20,18,16,.78);color:#fff;font-weight:700;font-size:13.5px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.ed-photo::after{content:"";position:absolute;left:0;right:0;height:40%;top:-40%;background:linear-gradient(180deg,transparent,rgba(224,122,80,.25),transparent);pointer-events:none}
+.ed-photo.scanning::after{animation:scan 1.6s ease-in-out infinite}
+@keyframes scan{to{top:100%}}
+.swatches{display:flex;gap:12px;flex-wrap:wrap;margin-top:9px}
+.swatch{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;width:64px}
+.swatch label{position:relative;display:block;width:48px;height:48px;cursor:pointer}
+.swatch label span{display:block;width:48px;height:48px;border-radius:50%;box-shadow:0 0 0 1px var(--line),inset 0 0 0 3px var(--surface)}
+.swatch.add label span{display:grid;place-items:center;background:var(--surface);border:1.5px dashed var(--surface-3);box-shadow:none;font-size:22px;color:var(--muted);font-weight:500}
+.swatch input[type=color]{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;border:0;padding:0}
+.swatch small{font-size:11px;font-weight:700;color:var(--muted);text-align:center;line-height:1.2}
+.swatch .x{position:absolute;top:-4px;right:4px;width:20px;height:20px;border-radius:50%;border:0;background:var(--ink);color:var(--bg);font-size:13px;line-height:20px;padding:0}
+.statrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}
+.stat{padding:12px;border-radius:16px;background:var(--surface);border:1px solid var(--line)}
+.stat b{display:block;font-family:var(--display);font-size:26px;font-weight:500;letter-spacing:-.02em}
+.stat span{font-size:11.5px;color:var(--muted);font-weight:700}
+.actrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.actrow .btn{flex-direction:column;gap:5px;padding:12px 6px;font-size:12.5px}
+.actrow .btn.on{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.note{font-size:13px;line-height:1.5;color:var(--muted);padding:12px 14px;border-radius:14px;background:var(--surface-2);margin-top:12px}
+.note b{color:var(--ink)}
+.alt-row{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:12px;width:100%;padding:10px;border-radius:18px;background:var(--surface);border:1px solid var(--line);margin-bottom:8px}
+.alt-row img{width:58px;height:58px;border-radius:14px;object-fit:cover;flex:none}
+.alt-row div{flex:1;min-width:0}
+.alt-row b{display:block;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.alt-row span{font-size:12px;color:var(--muted);font-weight:600}
+.alt-row.cur{border-color:var(--accent);background:var(--accent-soft)}
+.pill{font-size:12px;font-weight:800;padding:5px 9px;border-radius:999px;background:var(--surface-2)}
+
+/* looks saved */
+.minis{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.mini{all:unset;cursor:pointer;display:block;border-radius:22px;background:var(--surface);border:1px solid var(--line);padding:8px;box-shadow:var(--shadow)}
+.mini .q{display:grid;grid-template-columns:1fr 1fr;gap:4px;aspect-ratio:1/1;border-radius:16px;overflow:hidden}
+.mini .q img,.mini .q i{width:100%;height:100%;object-fit:cover;background:var(--surface-2)}
+.mini b{display:block;font-family:var(--display);font-weight:500;font-size:16px;margin:9px 4px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini span{display:block;font-size:11.5px;color:var(--muted);font-weight:700;margin:0 4px 4px}
+.diary{display:flex;flex-direction:column;gap:10px}
+.dday{display:flex;gap:14px;align-items:center;padding:12px;border-radius:20px;background:var(--surface);border:1px solid var(--line)}
+.dday .dt{flex:none;width:48px;text-align:center}
+.dday .dt b{display:block;font-family:var(--display);font-size:26px;font-weight:500;line-height:1}
+.dday .dt span{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.thumbs{display:flex;gap:5px;flex-wrap:wrap;flex:1}
+.thumbs img{width:44px;height:44px;border-radius:11px;object-fit:cover;background:var(--surface-2)}
+.thumbs small{flex-basis:100%;font-size:12px;font-weight:700;color:var(--muted)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:18px}
+.cal div{aspect-ratio:1/1;border-radius:10px;background:var(--surface);border:1px solid var(--line);display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--muted)}
+.cal div.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.cal div.today{box-shadow:0 0 0 2px var(--ink)}
+.cal div.h{background:none;border:0;font-size:10.5px;letter-spacing:.06em}
+
+/* insights */
+.stats3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stats3 .stat{padding:14px 12px;box-shadow:var(--shadow)}
+.stats3 .stat b{font-size:30px}
+.palbar{display:flex;height:42px;border-radius:14px;overflow:hidden;margin-top:12px;box-shadow:0 0 0 1px var(--line)}
+.palbar i{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:12px}
+.legend span{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700}
+.legend em{width:12px;height:12px;border-radius:50%;box-shadow:0 0 0 1px var(--line)}
+.bars{display:flex;flex-direction:column;gap:9px;margin-top:6px}
+.bar{display:grid;grid-template-columns:92px 1fr 26px;align-items:center;gap:10px;font-size:13px;font-weight:700}
+.bar i{display:block;height:10px;border-radius:5px;background:var(--surface-2);overflow:hidden}
+.bar i u{display:block;height:100%;background:var(--ink);border-radius:5px}
+.bar b{text-align:right}
+.hscroll{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;margin:0 -18px;padding:2px 18px 6px}
+.hscroll::-webkit-scrollbar{display:none}
+.fcard{all:unset;cursor:pointer;flex:none;width:128px;border-radius:20px;background:var(--surface);border:1px solid var(--line);overflow:hidden}
+.fcard img{width:100%;aspect-ratio:1/1;object-fit:cover;background:var(--surface-2)}
+.fcard div{padding:8px 10px 10px}
+.fcard b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fcard span{font-size:11.5px;color:var(--muted);font-weight:700}
+.feature{padding:18px;margin-top:14px;position:relative;overflow:hidden}
+.feature .fi{width:44px;height:44px;border-radius:15px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;margin-bottom:12px}
+.feature p{margin:6px 0 0;color:var(--muted);font-size:14px;line-height:1.5}
+.sugg{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line)}
+.sugg:first-of-type{border-top:0}
+.sugg .c{flex:none;width:34px;height:34px;border-radius:11px;box-shadow:0 0 0 1px var(--line)}
+.sugg b{display:block;font-size:14.5px}
+.sugg span{display:block;font-size:13px;color:var(--muted);line-height:1.45;margin-top:2px}
+.toprow{display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--line)}
+.toprow:first-child{border-top:0}
+.toprow img{width:44px;height:44px;border-radius:12px;object-fit:cover}
+.toprow div{flex:1;min-width:0}
+.toprow b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toprow span{font-size:12px;color:var(--muted);font-weight:600}
+.pack-list{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.pack-list img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:13px;background:var(--surface-2)}
+.pday{padding:12px;border-radius:18px;background:var(--surface);border:1px solid var(--line);margin-top:8px}
+.pday b{font-size:13px}
+.pday .thumbs{margin-top:8px}
+.pday p{margin:6px 0 0;font-size:12.5px;color:var(--muted)}
+
+/* toast & dialog */
+.toast{position:fixed;z-index:60;left:50%;top:calc(var(--sat) + 14px);transform:translate(-50%,-140%);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:16px;font-weight:700;font-size:14px;max-width:calc(100% - 36px);box-shadow:0 10px 30px rgba(0,0,0,.25);transition:transform .35s cubic-bezier(.2,.85,.2,1);text-align:center}
+.toast.on{transform:translate(-50%,0)}
+.dialog{position:fixed;z-index:70;inset:0;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,12,10,.45)}
+.dialog.on{display:flex}
+.dialog .box{width:100%;max-width:340px;background:var(--surface);border-radius:24px;padding:22px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.dialog p{margin:0 0 18px;font-size:15.5px;line-height:1.45;font-weight:600}
+.dialog .btns{display:flex;gap:8px}
+.dialog .btns .btn{flex:1}
+.dialog .btn.red{background:var(--danger);border-color:var(--danger);color:#fff}
+#filein{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="app"><div id="view"></div></div>
+<button class="fab" id="fab" data-act="add" aria-label="Añadir prendas" hidden></button>
+<nav class="tabbar" id="tabbar"></nav>
+<div class="backdrop" id="backdrop" data-act="close"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+<div class="toast" id="toast" role="status"></div>
+<div class="dialog" id="dialog"><div class="box"><p id="dlg-msg"></p><div class="btns"><button class="btn" id="dlg-no">Cancelar</button><button class="btn red" id="dlg-yes">Eliminar</button></div></div></div>
+<input type="file" id="filein" accept="image/*" multiple>
+
+<script>
+'use strict';
+/* =========================================================
+   Atelier — armario inteligente
+   ========================================================= */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = p => p + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const avg = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0;
+const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
+const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+const clone = o => JSON.parse(JSON.stringify(o));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function todayISO(d = new Date()) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function daysSince(iso) { if (!iso) return Infinity; return Math.round((new Date(todayISO() + 'T12:00:00') - new Date(iso + 'T12:00:00')) / 86400000); }
+function lsGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
+function lsSet(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { } }
+
+/* ---------- Icons ---------- */
+const IC = {
+  sparkle: '<path d="M12 3l1.8 4.9L19 9.7l-5.2 1.8L12 16.4l-1.8-4.9L5 9.7l5.2-1.8z"/><path d="M19 15l.7 1.8 1.8.7-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7z"/>',
+  hanger: '<path d="M9.8 5.6a2.2 2.2 0 1 1 2.2 2.2v1.3"/><path d="M12 9.1l8.6 6.3a1.6 1.6 0 0 1-.9 2.9H4.3a1.6 1.6 0 0 1-.9-2.9z"/>',
+  bookmark: '<path d="M6.5 4h11v16.5L12 16.8l-5.5 3.7z"/>',
+  chart: '<path d="M5 20V11M11 20V5M17 20v-6M3 20h18"/>',
+  home: '<path d="M4 10.5L12 4l8 6.5V20h-5.5v-5.5h-5V20H4z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  heart: '<path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z"/>',
+  swap: '<path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/>',
+  thumbdown: '<path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.7a2 2 0 0 0-2 1.7l-1.4 9A2 2 0 0 0 4.3 15zM17 2h2.7A2.3 2.3 0 0 1 22 4v7a2.3 2.3 0 0 1-2.3 2H17"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M5.5 7l1 13h11l1-13M9 7V4h6v3"/>',
+  pin: '<path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
+  drop: '<path d="M12 3.5s6 6.4 6 10.5a6 6 0 0 1-12 0c0-4.1 6-10.5 6-10.5z"/>',
+  wind: '<path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8"/>',
+  hum: '<path d="M7 15a5 5 0 0 0 10 0c0-3-5-9-5-9s-5 6-5 9z"/><path d="M10 15a2 2 0 0 0 2 2"/>',
+  uv: '<circle cx="12" cy="12" r="3.5"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6L7 7M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
+  suitcase: '<rect x="4" y="7" width="16" height="13" rx="2.5"/><path d="M9 7V4.5h6V7M9 11v5M15 11v5"/>',
+  bag: '<path d="M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2"/>',
+  wash: '<path d="M4 8h16l-1.6 11.5H5.6z"/><path d="M4 8c2.7 2 5.3 2 8 0s5.3-2 8 0"/>',
+  refresh: '<path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4"/>',
+  target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',
+  thermo: '<path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
+  phone: '<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',
+  cloudsync: '<path d="M7 18h10a4 4 0 0 0 .6-8A5.5 5.5 0 0 0 7 9.5 4.3 4.3 0 0 0 7 18z"/>',
+  calendar: '<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+};
+const WIC = {
+  clear: '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  moon: '<path d="M19.5 14.5A7.8 7.8 0 1 1 9.5 4.5a6.3 6.3 0 0 0 10 10z"/>',
+  partly: '<path d="M8.5 3.5v1.3M3.2 9H4.5M4.6 5.1l.9.9M12.4 5.1l-.9.9"/><path d="M5.6 12.2A3.6 3.6 0 1 1 11.8 8"/><path d="M9 20h8.5a3.5 3.5 0 0 0 .5-7 4.8 4.8 0 0 0-9.2.9A3.1 3.1 0 0 0 9 20z"/>',
+  cloudy: '<path d="M7 18.5h10a4 4 0 0 0 .6-8A5.5 5.5 0 0 0 7 10a4.3 4.3 0 0 0 0 8.5z"/>',
+  rain: '<path d="M7 14h10a4 4 0 0 0 .6-8A5.5 5.5 0 0 0 7 5.5 4.3 4.3 0 0 0 7 14z"/><path d="M8.5 17l-1 3M12.5 17l-1 3M16.5 17l-1 3"/>',
+  storm: '<path d="M7 14h10a4 4 0 0 0 .6-8A5.5 5.5 0 0 0 7 5.5 4.3 4.3 0 0 0 7 14z"/><path d="M12.5 14l-2 3.5h3l-2 3.5"/>',
+  snow: '<path d="M7 14h10a4 4 0 0 0 .6-8A5.5 5.5 0 0 0 7 5.5 4.3 4.3 0 0 0 7 14z"/><path d="M8 17.5v.01M12 17v.01M16 17.5v.01M10 20.5v.01M14 20.5v.01" stroke-width="2.4"/>',
+  fog: '<path d="M7 11h10a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 7.6 5 3 3 0 0 0 7 11z"/><path d="M4 14.5h16M5 18h14M7 21.5h10"/>',
+  wind: '<path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8"/>',
+};
+const ic = (n, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${IC[n] || ''}</svg>`;
+const wic = n => `<svg viewBox="0 0 24 24" aria-hidden="true">${WIC[n] || WIC.cloudy}</svg>`;
+
+/* ---------- Domain constants ---------- */
+const CATS = [
+  { id: 'top', label: 'Arriba', short: 'Arriba' },
+  { id: 'bottom', label: 'Abajo', short: 'Abajo' },
+  { id: 'dress', label: 'Vestidos', short: 'Vestido' },
+  { id: 'outer', label: 'Abrigos', short: 'Capa' },
+  { id: 'shoes', label: 'Calzado', short: 'Calzado' },
+  { id: 'accessory', label: 'Accesorios', short: 'Accesorio' },
+];
+const catLabel = id => (CATS.find(c => c.id === id) || {}).label || id;
+const catShort = id => (CATS.find(c => c.id === id) || {}).short || id;
+const SUBS = {
+  top: ['camiseta', 'camisa', 'polo', 'jersey', 'sudadera', 'blusa', 'top', 'camiseta de tirantes', 'chaleco de punto'],
+  bottom: ['vaqueros', 'pantalón chino', 'pantalón de vestir', 'jogger', 'falda', 'shorts', 'bermudas', 'leggings'],
+  dress: ['vestido', 'mono', 'peto'],
+  outer: ['chaqueta', 'cazadora vaquera', 'abrigo', 'trench', 'plumífero', 'blazer', 'cortavientos', 'chubasquero', 'cárdigan'],
+  shoes: ['zapatillas', 'botas', 'botines', 'zapatos', 'mocasines', 'sandalias', 'tacones', 'zapatillas de running'],
+  accessory: ['gorra', 'sombrero', 'bufanda', 'cinturón', 'bolso', 'mochila', 'gafas de sol', 'reloj', 'collar', 'gorro'],
+};
+const STYLES = ['casual', 'minimalista', 'clásico', 'elegante', 'formal', 'streetwear', 'deportivo', 'preppy', 'bohemio', 'vintage', 'romántico', 'rockero'];
+const PATTERNS = ['liso', 'rayas', 'cuadros', 'estampado', 'floral', 'lunares', 'animal print', 'gráfico/logo'];
+const WARM_L = ['Muy fresco', 'Fresco', 'Medio', 'Abrigado', 'Muy abrigado'];
+const FORM_L = ['Deportivo', 'Casual', 'Smart casual', 'Arreglado', 'Formal'];
+const OCCASIONS = [
+  { id: 'casual', label: 'Día a día', f: 2 }, { id: 'clase', label: 'Clase', f: 2.2 }, { id: 'trabajo', label: 'Trabajo', f: 3.3 },
+  { id: 'cita', label: 'Cita', f: 3.3 }, { id: 'fiesta', label: 'Fiesta', f: 3.5 }, { id: 'formal', label: 'Evento formal', f: 4.6 },
+  { id: 'deporte', label: 'Deporte', f: 1.1 }, { id: 'viaje', label: 'Viaje', f: 2 },
+];
+const CONDS = {
+  clear: 'Despejado', partly: 'Parcialmente nuboso', cloudy: 'Nublado', fog: 'Niebla',
+  wind: 'Ventoso', rain: 'Lluvia', storm: 'Tormenta', snow: 'Nieve',
+};
+const PACK_PLANS = ['ciudad', 'playa', 'montaña', 'trabajo', 'noche', 'deporte'];
+
+/* ---------- Color science ---------- */
+const PALETTE = [
+  ['Negro', '#141414'], ['Gris oscuro', '#404043'], ['Gris', '#8c8c8f'], ['Gris claro', '#c9c9cb'], ['Blanco', '#f6f6f3'],
+  ['Crudo', '#ebe3d2'], ['Beige', '#d5c2a2'], ['Camel', '#b48553'], ['Marrón', '#6d4a2e'], ['Chocolate', '#3d2a1f'],
+  ['Caqui', '#8f8a5c'], ['Oliva', '#5d6a39'], ['Verde botella', '#1f4a36'], ['Verde', '#2e8a4e'], ['Verde menta', '#a8d8c0'],
+  ['Turquesa', '#2bb0ad'], ['Azul celeste', '#9cc4e8'], ['Azul', '#2f63bd'], ['Denim', '#4c6b8f'], ['Azul marino', '#1c2847'],
+  ['Lila', '#b9a3d9'], ['Morado', '#5c3a8c'], ['Rosa palo', '#e8bfc4'], ['Rosa', '#e693b0'], ['Fucsia', '#c42a7d'],
+  ['Burdeos', '#6b1d2b'], ['Rojo', '#c62e2e'], ['Coral', '#ee7b62'], ['Naranja', '#e6782f'], ['Terracota', '#b65a3a'],
+  ['Mostaza', '#c99b2c'], ['Amarillo', '#efd24b'], ['Dorado', '#c9a253'], ['Plateado', '#bfc1c7'],
+];
+const NEUTRALS = new Set(['Negro', 'Gris oscuro', 'Gris', 'Gris claro', 'Blanco', 'Crudo', 'Beige', 'Camel', 'Marrón', 'Chocolate', 'Azul marino', 'Denim', 'Caqui', 'Plateado']);
+const PAL_HEX = Object.fromEntries(PALETTE);
+function hexToRgb(h) { h = String(h || '#888888').replace('#', ''); if (h.length === 3) h = h.split('').map(c => c + c).join(''); const n = parseInt(h, 16) || 0; return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function rgbToHex(r, g, b) { return '#' + [r, g, b].map(v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join(''); }
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2;
+  if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn); if (mx === r) h = (g - b) / d + (g < b ? 6 : 0); else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; h *= 60; }
+  return [h, s, l];
+}
+function rgbToLab(r, g, b) {
+  const f = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  const R = f(r), G = f(g), B = f(b);
+  let X = (R * 0.4124 + G * 0.3576 + B * 0.1805) / 0.95047, Y = R * 0.2126 + G * 0.7152 + B * 0.0722, Z = (R * 0.0193 + G * 0.1192 + B * 0.9505) / 1.08883;
+  const k = t => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116; X = k(X); Y = k(Y); Z = k(Z);
+  return [116 * Y - 16, 500 * (X - Y), 200 * (Y - Z)];
+}
+const dE = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+const PAL_LAB = PALETTE.map(([n, h]) => [n, rgbToLab(...hexToRgb(h))]);
+const _cn = new Map();
+function colorName(hex) {
+  if (!hex) return 'Gris'; if (_cn.has(hex)) return _cn.get(hex);
+  const lab = rgbToLab(...hexToRgb(hex)); let best = 'Gris', bd = 1e9;
+  for (const [n, l] of PAL_LAB) { const d = dE(lab, l); if (d < bd) { bd = d; best = n; } }
+  _cn.set(hex, best); return best;
+}
+function isNeutral(hex) { if (!hex) return true; const [, s, l] = rgbToHsl(...hexToRgb(hex)); return NEUTRALS.has(colorName(hex)) || s < 0.14 || l < 0.12 || l > 0.93; }
+const hueDiff = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
+function harmony(hexes) {
+  const cols = hexes.filter(Boolean);
+  const chroma = [];
+  for (const h of cols) { if (!isNeutral(h)) { const hsl = rgbToHsl(...hexToRgb(h)); if (!chroma.some(c => hueDiff(c.h, hsl[0]) < 14 && Math.abs(c.l - hsl[2]) < .12)) chroma.push({ hex: h, h: hsl[0], s: hsl[1], l: hsl[2] }); } }
+  const n = chroma.length; const nm = i => colorName(chroma[i].hex).toLowerCase();
+  const soft = n && chroma.every(c => c.s < .38) ? 5 : 0;
+  if (!cols.length) return { score: 70, type: 'Sin datos', desc: '' };
+  if (n === 0) {
+    const ls = cols.map(h => rgbToHsl(...hexToRgb(h))[2]); const contrast = Math.max(...ls) - Math.min(...ls);
+    return { score: contrast > .35 ? 92 : 88, type: 'Neutros', desc: contrast > .35 ? 'Paleta neutra con buen contraste claro-oscuro: elegante y segura.' : 'Paleta neutra y tonal: sobria, fácil y muy combinable.' };
+  }
+  if (n === 1) return { score: 94, type: 'Neutro + acento', desc: `El ${nm(0)} es el protagonista sobre una base neutra: la fórmula más fácil de acertar.` };
+  const pairs = []; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) pairs.push({ i, j, d: hueDiff(chroma[i].h, chroma[j].h) });
+  const maxD = Math.max(...pairs.map(p => p.d));
+  if (maxD <= 18) return { score: 91 + soft, type: 'Tono sobre tono', desc: `Distintos tonos de ${nm(0)}: un monocromo muy pulido.` };
+  if (maxD <= 42) return { score: Math.min(98, 86 + soft), type: 'Análogo', desc: `${cap(nm(0))} y ${nm(1)} son vecinos en el círculo cromático: armonía suave y natural.` };
+  if (n === 2) {
+    const d = pairs[0].d;
+    if (d >= 150) return { score: 84 + soft, type: 'Complementario', desc: `${cap(nm(0))} y ${nm(1)} son opuestos: contraste con energía, mejor si uno domina.` };
+    if (d >= 105) return { score: 76 + soft, type: 'Contraste dividido', desc: `${cap(nm(0))} y ${nm(1)} crean un contraste equilibrado.` };
+    const sat = Math.min(chroma[0].s, chroma[1].s);
+    return { score: (sat > .45 ? 54 : 66) + soft, type: 'Contraste arriesgado', desc: `${cap(nm(0))} y ${nm(1)} pueden competir; compénsalo con más neutros.` };
+  }
+  if (n === 3) {
+    if (pairs.every(p => p.d >= 95 && p.d <= 145)) return { score: 74 + soft, type: 'Triádico', desc: 'Tres colores equidistantes: atrevido pero equilibrado.' };
+    if (pairs.filter(p => p.d <= 42).length >= 1 && pairs.some(p => p.d >= 150)) return { score: 72 + soft, type: 'Acento complementario', desc: 'Dos tonos vecinos con un acento opuesto: con carácter.' };
+    return { score: 50 + soft, type: 'Muchos colores', desc: 'Tres colores fuertes a la vez; deja uno como protagonista.' };
+  }
+  return { score: 40, type: 'Demasiados colores', desc: 'Demasiados colores vivos; simplifica con básicos neutros.' };
+}
+
+/* ---------- Image processing ---------- */
+function loadImg(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; }); }
+function drawTo(img, max, q) {
+  const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height; const k = Math.min(1, max / Math.max(W, H));
+  const w = Math.max(1, Math.round(W * k)), h = Math.max(1, Math.round(H * k));
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d');
+  x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(img, 0, 0, w, h);
+  return c;
+}
+const canvasBlob = (c, q) => new Promise(r => c.toBlob(b => r(b), 'image/jpeg', q));
+function extractColors(img) {
+  const c = drawTo(img, 84); const w = c.width, h = c.height; const d = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
+  let br = 0, bg = 0, bb = 0, bn = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { if (x < 3 || y < 3 || x >= w - 3 || y >= h - 3) { const i = (y * w + x) * 4; br += d[i]; bg += d[i + 1]; bb += d[i + 2]; bn++; } }
+  const bgLab = rgbToLab(br / bn, bg / bn, bb / bn);
+  const run = filterBg => {
+    const bins = new Map(); const cx = w / 2, cy = h / 2, md = Math.hypot(cx, cy); let tw = 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4; const r = d[i], g = d[i + 1], b = d[i + 2];
+      if (filterBg && dE(rgbToLab(r, g, b), bgLab) < 15) continue;
+      const wt = 1 - 0.75 * (Math.hypot(x - cx, y - cy) / md); const key = (r >> 5) << 6 | (g >> 5) << 3 | (b >> 5);
+      let e = bins.get(key); if (!e) { e = { w: 0, r: 0, g: 0, b: 0 }; bins.set(key, e); }
+      e.w += wt; e.r += r * wt; e.g += g * wt; e.b += b * wt; tw += wt;
+    }
+    return { bins, tw };
+  };
+  let { bins, tw } = run(true);
+  if (tw < w * h * 0.06) ({ bins, tw } = run(false));
+  const arr = [...bins.values()].map(e => ({ w: e.w, rgb: [e.r / e.w, e.g / e.w, e.b / e.w] })).sort((a, b) => b.w - a.w);
+  const out = [];
+  for (const e of arr) {
+    const lab = rgbToLab(...e.rgb); const m = out.find(o => dE(o.lab, lab) < 20);
+    if (m) { const t = m.w + e.w; m.rgb = m.rgb.map((v, j) => (v * m.w + e.rgb[j] * e.w) / t); m.w = t; m.lab = rgbToLab(...m.rgb); }
+    else out.push({ ...e, lab });
+  }
+  out.sort((a, b) => b.w - a.w); const tot = out.reduce((s, o) => s + o.w, 0) || 1;
+  return out.filter((o, i) => i === 0 || o.w / tot > 0.13).slice(0, 3).map(o => rgbToHex(...o.rgb));
+}
+async function processFile(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await loadImg(url);
+    const big = drawTo(img, 1000); const blob = await canvasBlob(big, 0.84);
+    const small = drawTo(img, 560); const dataURL = small.toDataURL('image/jpeg', 0.72);
+    const aiBlob = await canvasBlob(drawTo(img, 768), 0.82);
+    return { blob, dataURL, aiBlob, colors: extractColors(img) };
+  } finally { URL.revokeObjectURL(url); }
+}
+function dataURLToBlob(s) { const [h, b] = s.split(','); const mime = (h.match(/data:([^;]+)/) || [])[1] || 'image/jpeg'; const bin = atob(b); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return new Blob([u8], { type: mime }); }
+const _imgCache = new Map();
+function imgSrc(it) {
+  const s = it && it.img || ''; if (!s.startsWith('data:')) return s;
+  const c = _imgCache.get(it.id); if (c && c.len === s.length && c.head === s.slice(-40)) return c.url;
+  try { const url = URL.createObjectURL(dataURLToBlob(s)); if (c) URL.revokeObjectURL(c.url); _imgCache.set(it.id, { len: s.length, head: s.slice(-40), url }); return url; } catch { return s; }
+}
+async function itemBlob(it) {
+  if (!it.img) throw new Error('sin imagen');
+  if (it.img.startsWith('data:')) return dataURLToBlob(it.img);
+  const img = await loadImg(it.img); return canvasBlob(drawTo(img, 768), 0.82);
+}
+const blobToB64 = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(b); });
+
+/* ---------- Claude runtime ---------- */
+let _cw;
+function claudeReady() {
+  if (_cw) return _cw;
+  _cw = new Promise(res => { let n = 0; const t = () => { if (window.claude && typeof window.claude.use === 'function') return res(window.claude); if (++n > 12) return res(null); setTimeout(t, 50); }; t(); });
+  return _cw;
+}
+async function useCap(name) { const c = await claudeReady(); if (!c) return null; try { return await c.use(name); } catch { return null; } }
+
+/* ---------- Storage ---------- */
+const Store = {
+  mode: 'memory', coll: null, assets: null, idb: null, q: new Map(), unsub: null,
+  async init() {
+    const db = await useCap('db');
+    if (db) {
+      const user = await useCap('user'); let id = null;
+      if (user && typeof user.id === 'function') { try { id = await user.id(); } catch { } }
+      if (id) { try { this.coll = db.collection('data/users/' + id); this.mode = 'cloud'; this.assets = await useCap('assets'); return; } catch { } }
+    }
+    await this.openIdb();
+  },
+  openIdb() {
+    return new Promise(res => {
+      try {
+        const r = indexedDB.open('atelier', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('docs', { keyPath: 'id' });
+        r.onsuccess = () => { this.idb = r.result; this.mode = 'local'; res(); };
+        r.onerror = () => { this.mode = 'memory'; res(); };
+      } catch { this.mode = 'memory'; res(); }
+    });
+  },
+  subscribe(cb) {
+    if (this.mode === 'cloud') {
+      let timer = setTimeout(() => cb(null, 'timeout'), 10000);
+      this.unsub = this.coll.onSnapshot(snap => { if (!snap.metadata.fromCache) clearTimeout(timer); cb(snap.docs.map(d => ({ ...d.data(), id: d.id }))); },
+        err => { clearTimeout(timer); cb(null, (err && err.code) || 'error'); });
+      return;
+    }
+    if (this.mode === 'local') {
+      const tx = this.idb.transaction('docs', 'readonly'); const r = tx.objectStore('docs').getAll();
+      r.onsuccess = () => cb(r.result || []); r.onerror = () => cb([]);
+      return;
+    }
+    cb([]);
+  },
+  _strip(doc) { return JSON.parse(JSON.stringify(doc, (k, v) => k.startsWith('_') ? undefined : v)); },
+  put(doc) {
+    const body = this._strip(doc); S.docs.set(body.id, body);
+    const prev = this.q.get(body.id) || Promise.resolve();
+    const p = prev.catch(() => { }).then(() => this._write(body));
+    this.q.set(body.id, p); return p;
+  },
+  _write(body) {
+    if (this.mode === 'cloud') return this.coll.doc(body.id).set(body);
+    if (this.mode === 'local') return new Promise((res, rej) => { const tx = this.idb.transaction('docs', 'readwrite'); tx.objectStore('docs').put(body); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); });
+    return Promise.resolve();
+  },
+  del(id) {
+    S.docs.delete(id);
+    const prev = this.q.get(id) || Promise.resolve();
+    const p = prev.catch(() => { }).then(() => {
+      if (this.mode === 'cloud') return this.coll.doc(id).delete();
+      if (this.mode === 'local') return new Promise((res, rej) => { const tx = this.idb.transaction('docs', 'readwrite'); tx.objectStore('docs').delete(id); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); });
+    });
+    this.q.set(id, p); return p;
+  },
+  async saveImage(p) {
+    if (this.mode === 'cloud' && this.assets) {
+      try { const a = await this.assets.upload(p.blob); if (a && (a.url || a.id)) return { img: a.url || ('/_blob/' + a.id), imgId: a.id }; } catch { }
+    }
+    return { img: p.dataURL };
+  },
+  async deleteImage(it) { if (this.mode === 'cloud' && this.assets && it.imgId) { try { await this.assets.delete(it.imgId); } catch { } } },
+};
+
+/* ---------- AI ---------- */
+function parseJSON(t) { if (t && typeof t === 'object') return t; const s = String(t || ''); try { return JSON.parse(s); } catch { } const m = s.match(/\{[\s\S]*\}/); if (m) { try { return JSON.parse(m[0]); } catch { } } throw { code: 'bad_json', message: 'Respuesta no válida' }; }
+const AI = {
+  sample: null, images: false,
+  async init() {
+    this.sample = await useCap('sample');
+    if (this.sample && typeof this.sample.limits === 'function') { try { const l = await this.sample.limits(); this.images = !!(l && l.images); } catch { } }
+  },
+  key() { return lsGet('atelier_api_key') || ''; },
+  mode() { return this.sample ? 'claude' : (this.key() ? 'api' : 'local'); },
+  available() { return this.mode() !== 'local'; },
+  canSee() { return (this.sample && this.images) || (!this.sample && !!this.key()); },
+  async json(prompt, { images = [], tier = 'default', timeout = 90000 } = {}) {
+    const run = async () => {
+      if (this.sample) {
+        const opts = { modelTier: tier }; if (images.length && this.images) opts.images = images;
+        if (typeof this.sample.json === 'function') return parseJSON(await this.sample.json(prompt, opts));
+        const r = await this.sample(prompt, opts); return parseJSON(r && r.text);
+      }
+      if (this.key()) return this.api(prompt, images);
+      throw { code: 'no_ai' };
+    };
+    return Promise.race([run(), sleep(timeout).then(() => { throw { code: 'timeout' }; })]);
+  },
+  async api(prompt, images) {
+    const content = [];
+    for (const b of images) content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: await blobToB64(b) } });
+    content.push({ type: 'text', text: prompt });
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': this.key(), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({ model: 'claude-sonnet-5-5', max_tokens: 3000, messages: [{ role: 'user', content }] }),
+    });
+    if (!res.ok) throw { code: 'api_' + res.status, message: await res.text() };
+    const j = await res.json(); return parseJSON((j.content || []).map(c => c.text || '').join(''));
+  },
+};
+function aiError(e) {
+  const c = e && e.code;
+  if (c === 'not_granted') { AI.sample = null; toast('La IA no tiene permiso aquí; uso el motor de estilo local'); }
+  else if (c === 'rate_limited') toast('La IA está ocupada; prueba en un momento');
+  else if (c === 'api_401') toast('La clave de API no es válida');
+  else toast('La IA no respondió; uso el motor de estilo local');
+}
+
+/* ---------- Weather ---------- */
+async function fetchT(url, ms) { const ac = new AbortController(); const t = setTimeout(() => ac.abort(), ms); try { const r = await fetch(url, { signal: ac.signal }); if (!r.ok) throw new Error('http'); return r; } finally { clearTimeout(t); } }
+const WX = {
+  cond(c) { if (c === 0) return 'clear'; if (c <= 2) return 'partly'; if (c === 3) return 'cloudy'; if (c === 45 || c === 48) return 'fog'; if ((c >= 51 && c <= 67) || (c >= 80 && c <= 82)) return 'rain'; if ((c >= 71 && c <= 77) || c === 85 || c === 86) return 'snow'; if (c >= 95) return 'storm'; return 'cloudy'; },
+  async live(lat, lon) {
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day,uv_index&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max&timezone=auto&forecast_days=1`;
+    const j = await (await fetchT(u, 7000)).json(); const c = j.current, d = j.daily || {};
+    let cond = this.cond(c.weather_code); if (c.wind_speed_10m >= 35 && ['clear', 'partly', 'cloudy'].includes(cond)) cond = 'wind';
+    return { temp: Math.round(c.temperature_2m), feels: Math.round(c.apparent_temperature), hum: Math.round(c.relative_humidity_2m), wind: Math.round(c.wind_speed_10m), cond, isDay: !!c.is_day, uv: Math.round((d.uv_index_max && d.uv_index_max[0]) ?? c.uv_index ?? 0), rainProb: (d.precipitation_probability_max && d.precipitation_probability_max[0]) ?? 0, tmax: d.temperature_2m_max && Math.round(d.temperature_2m_max[0]), tmin: d.temperature_2m_min && Math.round(d.temperature_2m_min[0]), src: 'live', at: Date.now() };
+  },
+  async geocode(name) {
+    const j = await (await fetchT(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=es&format=json`, 7000)).json();
+    const g = j.results && j.results[0]; if (!g) throw { code: 'notfound' };
+    return { lat: g.latitude, lon: g.longitude, city: g.name + (g.admin1 && g.admin1 !== g.name ? ', ' + g.admin1 : '') };
+  },
+  geolocate() { return new Promise((res, rej) => { if (!navigator.geolocation) return rej({ code: 'nogeo' }); navigator.geolocation.getCurrentPosition(p => res({ lat: +p.coords.latitude.toFixed(3), lon: +p.coords.longitude.toFixed(3) }), e => rej({ code: 'geo' }), { timeout: 9000, maximumAge: 600000 }); }); },
+  feels(w) { let f = w.temp; if (w.temp < 16) f -= (w.wind || 0) * 0.09; if (w.temp > 24 && (w.hum || 0) > 65) f += (w.hum - 65) * 0.08; if (w.cond === 'clear' && w.isDay && w.temp > 12) f += 1; return Math.round(f); },
+};
+function defaultWx() { const h = new Date().getHours(); const w = { temp: 19, hum: 60, wind: 12, cond: 'partly', rainProb: 10, uv: 4, isDay: h >= 7 && h < 19, src: 'manual', city: '' }; w.feels = WX.feels(w); return w; }
+function targetWarmth(w) { const t = w.feels ?? w.temp; if (t >= 28) return 1; if (t >= 23) return 1.6; if (t >= 19) return 2.4; if (t >= 15) return 3.1; if (t >= 10) return 3.8; if (t >= 5) return 4.5; return 5; }
+function isWet(w) { return ['rain', 'storm', 'snow'].includes(w.cond) || (w.rainProb || 0) >= 55; }
+function needsOuter(w) { return targetWarmth(w) >= 3 || isWet(w) || (w.wind || 0) >= 30; }
+function layersFor(w) { const t = targetWarmth(w); return t <= 1.8 ? 1 : t <= 3 ? 2 : t <= 4.2 ? 3 : 4; }
+function layerAdvice(w) {
+  const n = layersFor(w); const base = ['Una capa ligera y transpirable', 'Dos capas: base + algo ligero por si refresca', 'Tres capas: base, intermedia y chaqueta', 'Abrigo de verdad: capas térmicas + abrigo'][n - 1];
+  return base + (isWet(w) ? ' · algo impermeable' : '') + ((w.uv || 0) >= 7 ? ' · protección solar' : '');
+}
+
+/* ---------- State ---------- */
+const S = {
+  docs: new Map(), view: 'hoy', loaded: false, cat: 'all', color: null, q: '', occasion: 'casual', mood: null, anchor: null,
+  results: [], source: null, generating: false, looksTab: 'saved', analyzing: new Set(), edit: null, sheet: null,
+  weather: defaultWx(), wxMsg: '', wxBusy: false, shop: null, shopBusy: false, pack: null, packBusy: false, inClaude: false,
+};
+const items = () => [...S.docs.values()].filter(d => d.type === 'item').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+const activeItems = () => items().filter(i => !i.laundry);
+const outfits = () => [...S.docs.values()].filter(d => d.type === 'outfit').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+const logs = () => [...S.docs.values()].filter(d => d.type === 'log').sort((a, b) => a.date < b.date ? 1 : -1);
+const getDoc = id => S.docs.get(id);
+const settings = () => S.docs.get('settings') || { id: 'settings', type: 'settings' };
+const feedback = () => S.docs.get('fb') || { id: 'fb', type: 'fb', likes: [], dislikes: [] };
+async function save(doc) {
+  try { await Store.put(doc); }
+  catch (e) { toast(e && e.code === 'quota_exceeded' ? 'El almacenamiento está lleno: elimina alguna prenda' : 'No se ha podido guardar'); throw e; }
+}
+
+/* ---------- Outfit engine (local) ---------- */
+const ORDER = ['outer', 'top', 'dress', 'bottom', 'shoes', 'accessory'];
+const orderParts = its => [...its].sort((a, b) => ORDER.indexOf(a.category) - ORDER.indexOf(b.category));
+function partsOf(its) { const p = {}; its.forEach(i => { if (!p[i.category]) p[i.category] = i; }); return p; }
+function effWarmth(p) { const base = p.dress ? (p.dress.warmth || 2) : ((p.top ? p.top.warmth || 2 : 2) * 0.6 + (p.bottom ? p.bottom.warmth || 2 : 2) * 0.4); return p.outer ? Math.min(5.5, base + (p.outer.warmth || 3) * 0.55) : base; }
+function sigOf(ids) { return ids.map(getDoc).filter(i => i && ['top', 'bottom', 'dress'].includes(i.category)).map(i => i.id).sort().join('|'); }
+const isSandal = i => i && /sandal|chancl/i.test(norm(i.sub));
+function ctxNow() {
+  const w = S.weather, fb = feedback(), occ = OCCASIONS.find(o => o.id === S.occasion) || OCCASIONS[0];
+  return { weather: w, target: targetWarmth(w), wet: isWet(w), formality: occ.f, occasion: occ, mood: S.mood, anchor: S.anchor ? getDoc(S.anchor) : null, likes: new Set(fb.likes || []), dislikes: new Set(fb.dislikes || []) };
+}
+function scoreOutfit(p, ctx) {
+  const list = Object.values(p).filter(Boolean);
+  const h = harmony(list.map(i => (i.colors || [])[0]));
+  const eff = effWarmth(p);
+  let wS = 100 - Math.abs(eff - ctx.target) * 28;
+  if (ctx.wet) { if (p.outer && p.outer.waterproof) wS += 10; else if (!p.outer) wS -= 22; if (isSandal(p.shoes)) wS -= 30; if (p.shoes && p.shoes.waterproof) wS += 5; }
+  if (ctx.target <= 1.8 && p.outer) wS -= 25;
+  if (ctx.target >= 3.8 && isSandal(p.shoes)) wS -= 25;
+  const fs = list.map(i => i.formality || 2); let fS = 100 - Math.abs(avg(fs) - ctx.formality) * 24 - Math.max(0, Math.max(...fs) - Math.min(...fs) - 1.5) * 14;
+  const cnt = {}; list.forEach(i => (i.styles || []).forEach(s => cnt[s] = (cnt[s] || 0) + 1));
+  let sS = 50 + (Math.max(0, ...Object.values(cnt)) / list.length) * 50;
+  if (ctx.mood) { const m = list.filter(i => (i.styles || []).includes(ctx.mood)).length; sS = sS * 0.4 + (m / list.length) * 60 + (m ? 20 : -10); }
+  if (ctx.occasion.id === 'deporte') sS += list.filter(i => (i.styles || []).includes('deportivo')).length * 8;
+  let mS = 72; list.forEach(i => { const ds = daysSince(i.lastWorn); if (ds <= 1) mS -= 18; else if (ds <= 3) mS -= 7; if (!i.wearCount) mS += 3; if (i.fav) mS += 5; });
+  const sig = list.filter(i => ['top', 'bottom', 'dress'].includes(i.category)).map(i => i.id).sort().join('|');
+  if (ctx.dislikes.has(sig)) mS -= 70; if (ctx.likes.has(sig)) mS += 10;
+  const pats = list.filter(i => i.pattern && i.pattern !== 'liso').length;
+  const cS = h.score - (pats >= 2 ? 15 : 0);
+  const total = cS * 0.34 + clamp(wS, 0, 100) * 0.26 + clamp(fS, 0, 100) * 0.18 + clamp(sS, 0, 100) * 0.12 + clamp(mS, 0, 100) * 0.10;
+  return { total, h, eff, wS, fS };
+}
+function poolFor(ctx) {
+  const pool = activeItems(); if (ctx.anchor && !pool.find(i => i.id === ctx.anchor.id)) pool.push(ctx.anchor);
+  const by = c => pool.filter(i => i.category === c);
+  let tops = by('top'), bottoms = by('bottom'), dresses = by('dress'), outers = by('outer'), shoes = by('shoes'), accs = by('accessory');
+  const a = ctx.anchor;
+  if (a) { if (a.category === 'top') { tops = [a]; dresses = []; } if (a.category === 'bottom') { bottoms = [a]; dresses = []; } if (a.category === 'dress') { dresses = [a]; tops = []; bottoms = []; } if (a.category === 'outer') outers = [a]; if (a.category === 'shoes') shoes = [a]; if (a.category === 'accessory') accs = [a]; }
+  return { pool, tops, bottoms, dresses, outers, shoes, accs };
+}
+function canGenerate(ctx) { const p = poolFor(ctx); return (p.tops.length && p.bottoms.length) || p.dresses.length; }
+function localOutfits(ctx, n = 3) {
+  const P = poolFor(ctx);
+  const bases = [];
+  for (const t of P.tops.slice(0, 50)) for (const b of P.bottoms.slice(0, 50)) bases.push({ top: t, bottom: b });
+  P.dresses.forEach(d => bases.push({ dress: d }));
+  const wantOuter = needsOuter(ctx.weather) || (ctx.anchor && ctx.anchor.category === 'outer');
+  const shoeOpts = P.shoes.length ? P.shoes.slice(0, 25) : [null];
+  const outerOpts = wantOuter && P.outers.length ? P.outers.slice(0, 15) : [null];
+  const cands = [];
+  for (const base of bases) {
+    let best = null;
+    for (const s of shoeOpts) for (const o of outerOpts) {
+      const p = { ...base }; if (s) p.shoes = s; if (o) p.outer = o;
+      const sc = scoreOutfit(p, ctx); if (!best || sc.total > best.sc.total) best = { p, sc };
+    }
+    cands.push(best);
+  }
+  cands.sort((a, b) => b.sc.total - a.sc.total);
+  const anchorId = ctx.anchor && ctx.anchor.id;
+  const chosen = [], used = new Set();
+  for (const c of cands) {
+    const core = [c.p.top, c.p.bottom, c.p.dress].filter(Boolean).map(i => i.id).filter(id => id !== anchorId);
+    if (core.some(id => used.has(id))) continue;
+    chosen.push(c); core.forEach(id => used.add(id)); if (chosen.length >= n) break;
+  }
+  for (const c of cands) { if (chosen.length >= n) break; if (!chosen.includes(c)) chosen.push(c); }
+  return chosen.map(c => {
+    let p = c.p, sc = c.sc;
+    if (P.accs.length) {
+      let bestA = null;
+      for (const a of P.accs.slice(0, 20)) { const s2 = scoreOutfit({ ...p, accessory: a }, ctx); if (s2.total >= sc.total - 1.2 && (!bestA || s2.total > bestA.s.total)) bestA = { a, s: s2 }; }
+      if (bestA) { p = { ...p, accessory: bestA.a }; sc = bestA.s; }
+    }
+    return { itemIds: Object.values(p).filter(Boolean).map(i => i.id), title: localTitle(p, sc), why: localWhy(p, sc, ctx), tip: localTip(ctx), score: Math.round(sc.total) };
+  });
+}
+function localTitle(p, sc) {
+  const list = Object.values(p).filter(Boolean); const acc = list.map(i => (i.colors || [])[0]).find(h => h && !isNeutral(h));
+  const an = acc ? colorName(acc).toLowerCase() : '';
+  const t = { 'Neutros': 'Básicos impecables', 'Neutro + acento': `Toque ${an}`, 'Tono sobre tono': `Monocromo ${an}`, 'Análogo': 'Gama armoniosa', 'Complementario': 'Contraste con chispa', 'Contraste dividido': 'Equilibrio de color', 'Triádico': 'Color sin miedo', 'Acento complementario': 'Acento con carácter' }[sc.h.type];
+  return t || 'Look del día';
+}
+function localWhy(p, sc, ctx) {
+  const d = sc.eff - ctx.target; const t = ctx.weather.feels ?? ctx.weather.temp;
+  const warm = Math.abs(d) < .6 ? `Nivel de abrigo ideal para ${t}°.` : d < 0 ? `Puede quedarse algo fresco a ${t}°; lleva una capa extra.` : p.outer ? `Algo abrigado para ${t}°; podrás quitarte la capa exterior.` : `Algo cálido para ${t}°; remángate si aprieta el calor.`;
+  return `${sc.h.desc} ${warm}`;
+}
+function localTip(ctx) {
+  const w = ctx.weather;
+  if (isWet(w)) return 'Prob. de lluvia alta: lleva paraguas y evita ante o lona clara.';
+  if ((w.uv || 0) >= 7) return 'UV muy alto: gafas de sol, gorra y tejidos claros.';
+  if ((w.wind || 0) >= 30) return 'Viento fuerte: mejor prendas ajustadas y un cortavientos.';
+  if (w.tmax != null && w.tmin != null && w.tmax - w.tmin >= 8) return `Oscila de ${w.tmin}° a ${w.tmax}°: apuesta por capas fáciles de quitar.`;
+  if (targetWarmth(w) <= 1.6) return 'Calor: tejidos naturales como lino o algodón y colores claros.';
+  return 'Remanga o abre la capa exterior según avance el día.';
+}
+function enrich(o) { return { ...o, id: o.id || uid('r'), itemIds: o.itemIds.filter(id => getDoc(id)) }; }
+
+/* ---------- AI flows ---------- */
+function compactWardrobe(list) {
+  return list.map(i => ({ id: i.id, nombre: i.name, categoria: i.category, tipo: i.sub || '', colores: (i.colors || []).map(h => colorName(h) + ' ' + h), estampado: i.pattern || 'liso', estilos: i.styles || [], abrigo: i.warmth, formalidad: i.formality, impermeable: !!i.waterproof, usos: i.wearCount || 0, ultimoUso: i.lastWorn ? `hace ${daysSince(i.lastWorn)} días` : 'nunca', favorita: !!i.fav }));
+}
+function wxText(w) { return `${CONDS[w.cond] || w.cond}, ${w.temp} °C (sensación ${w.feels ?? w.temp} °C)${w.tmin != null ? `, mín ${w.tmin} / máx ${w.tmax} °C` : ''}, prob. lluvia ${w.rainProb ?? 0}%, viento ${w.wind ?? 0} km/h, humedad ${w.hum ?? '?'}%, UV ${w.uv ?? '?'}, ${w.isDay ? 'de día' : 'de noche'}${w.city ? ', en ' + w.city : ''}`; }
+const namesOf = sig => sig.split('|').map(id => (getDoc(id) || {}).name).filter(Boolean).join(' + ');
+async function aiOutfits(ctx, n = 3) {
+  const P = poolFor(ctx); const list = P.pool;
+  const fb = feedback();
+  const recent = list.filter(i => daysSince(i.lastWorn) <= 2).map(i => i.name);
+  const d = new Date();
+  const prompt = `Eres un estilista personal experto en teoría del color y moda. Crea ${n} outfits con las prendas del armario del usuario.
+
+CONTEXTO
+- Fecha: ${d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}, ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')} h
+- Tiempo actual: ${wxText(ctx.weather)}
+- Nivel de abrigo objetivo (escala 1-5): ${ctx.target.toFixed(1)}
+- Ocasión: ${ctx.occasion.label} (formalidad objetivo ${ctx.formality} sobre 5)
+- Estilo deseado hoy: ${ctx.mood || 'libre'}
+${ctx.anchor ? `- Prenda protagonista OBLIGATORIA en todos los outfits: ${ctx.anchor.id} (${ctx.anchor.name})\n` : ''}- Combinaciones que le gustaron: ${(fb.likes || []).slice(-8).map(namesOf).filter(Boolean).join('; ') || 'ninguna aún'}
+- Combinaciones que NO le gustaron (no las repitas): ${(fb.dislikes || []).slice(-12).map(namesOf).filter(Boolean).join('; ') || 'ninguna'}
+- Usado en los últimos 2 días (evítalo si hay alternativas): ${recent.join(', ') || 'nada'}
+
+ARMARIO (JSON; "abrigo" y "formalidad" de 1 a 5):
+${JSON.stringify(compactWardrobe(list))}
+
+REGLAS
+1. Usa SOLO ids del armario. Estructura: una prenda "top" + una "bottom", o un "dress"; añade calzado si lo hay; añade "outer" si la sensación térmica es < 18 °C, hay lluvia probable o viento fuerte (impermeable si llueve); accesorios opcionales (máx. 2).
+2. Teoría del color: base neutra + máx. 1-2 colores protagonistas, armonías análogas, complementarias o tono sobre tono; evita dos estampados que compitan.
+3. Coherencia de estilo y formalidad con la ocasión; el abrigo total debe ajustarse al tiempo.
+4. Los ${n} outfits deben ser claramente distintos (no repitas la misma parte de arriba ni el mismo vestido).
+5. Español de España, tuteando, frases breves y concretas (menciona colores y prendas reales).
+
+Responde SOLO con JSON válido, sin texto adicional:
+{"outfits":[{"title":"nombre creativo de máx. 4 palabras","itemIds":["id1","id2"],"why":"1-2 frases sobre por qué combinan color y estilo","tip":"un consejo práctico según el tiempo","score":0-100}]}`;
+  const v = await AI.json(prompt, { tier: 'default' });
+  const map = new Map(list.map(i => [i.id, i]));
+  const out = [];
+  for (const o of (v && v.outfits) || []) {
+    let ids = [...new Set((o.itemIds || []).map(String).filter(id => map.has(id)))];
+    if (ctx.anchor && !ids.includes(ctx.anchor.id)) { ids = ids.filter(id => map.get(id).category !== ctx.anchor.category); ids.push(ctx.anchor.id); }
+    const p = partsOf(ids.map(id => map.get(id)));
+    if (!((p.top && p.bottom) || p.dress)) continue;
+    out.push({ itemIds: ids, title: String(o.title || '').slice(0, 40), why: String(o.why || ''), tip: String(o.tip || ''), score: clamp(Math.round(+o.score || scoreOutfit(p, ctx).total), 0, 100) });
+  }
+  return out.slice(0, n);
+}
+const STYLE_N = new Map(STYLES.map(s => [norm(s), s]));
+function normalizeAnalysis(v, fallbackColors) {
+  const catMap = { top: 'top', bottom: 'bottom', dress: 'dress', outer: 'outer', shoes: 'shoes', accessory: 'accessory', arriba: 'top', abajo: 'bottom', vestido: 'dress', abrigo: 'outer', calzado: 'shoes', accesorio: 'accessory', outerwear: 'outer', footwear: 'shoes' };
+  const r = {};
+  if (v.name) r.name = String(v.name).slice(0, 60);
+  const c = catMap[norm(v.category)]; if (c) r.category = c;
+  if (v.sub) r.sub = String(v.sub).toLowerCase().slice(0, 40);
+  const cols = (Array.isArray(v.colors) ? v.colors : []).map(x => String(x).trim()).map(x => x.startsWith('#') ? x : '#' + x).filter(x => /^#[0-9a-f]{6}$/i.test(x)).slice(0, 3);
+  r.colors = cols.length ? cols.map(x => x.toLowerCase()) : fallbackColors;
+  const pt = PATTERNS.find(p => norm(p) === norm(v.pattern)); if (pt) r.pattern = pt;
+  const st = (Array.isArray(v.styles) ? v.styles : []).map(s => STYLE_N.get(norm(s))).filter(Boolean); if (st.length) r.styles = [...new Set(st)].slice(0, 4);
+  if (v.warmth != null) r.warmth = clamp(Math.round(+v.warmth) || 2, 1, 5);
+  if (v.formality != null) r.formality = clamp(Math.round(+v.formality) || 2, 1, 5);
+  if (v.waterproof != null) r.waterproof = !!v.waterproof;
+  if (v.material) r.material = String(v.material).slice(0, 40);
+  return r;
+}
+async function analyzeBlob(blob, hintColors) {
+  const prompt = `Eres un estilista experto. Analiza la prenda de ropa principal de la foto (ignora el fondo, la percha o la persona).
+Colores detectados automáticamente como pista (pueden incluir algo de fondo): ${(hintColors || []).join(', ') || 'ninguno'}.
+Responde SOLO con JSON válido:
+{"name":"nombre corto en español, p. ej. 'Camisa oxford azul celeste'",
+"category":"top|bottom|dress|outer|shoes|accessory",
+"sub":"tipo concreto en español (camiseta, camisa, jersey, sudadera, vaqueros, pantalón chino, falda, vestido, chaqueta, abrigo, blazer, zapatillas, botas, bolso, gorra...)",
+"colors":["#hex del color dominante del tejido","#hex secundario si existe"],
+"pattern":"${PATTERNS.join('|')}",
+"styles":["de 1 a 3 entre: ${STYLES.join(', ')}"],
+"warmth":1-5 (1 = muy fresco/verano, 5 = muy abrigado),
+"formality":1-5 (1 = deportivo, 3 = smart casual, 5 = formal),
+"waterproof":true|false,
+"material":"material probable"}`;
+  return normalizeAnalysis(await AI.json(prompt, { images: [blob], tier: 'quick', timeout: 60000 }), hintColors);
+}
+
+/* ---------- Toast / dialog ---------- */
+let _tt;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(_tt); _tt = setTimeout(() => t.classList.remove('on'), 2600); }
+function confirmBox(msg, yes = 'Eliminar') {
+  return new Promise(res => {
+    const d = $('#dialog'); $('#dlg-msg').textContent = msg; $('#dlg-yes').textContent = yes; d.classList.add('on');
+    const done = v => { d.classList.remove('on'); $('#dlg-yes').onclick = $('#dlg-no').onclick = null; res(v); };
+    $('#dlg-yes').onclick = () => done(true); $('#dlg-no').onclick = () => done(false);
+  });
+}
+
+/* ---------- Render: shared ---------- */
+function header(v) {
+  const d = new Date(); const date = d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  const h = d.getHours(); const greet = h < 6 ? 'Buenas <em>noches</em>' : h < 13 ? 'Buenos <em>días</em>' : h < 21 ? 'Buenas <em>tardes</em>' : 'Buenas <em>noches</em>';
+  const n = items().length;
+  const t = { hoy: [date, greet], armario: [`${n} ${n === 1 ? 'prenda' : 'prendas'}`, 'Tu <em>armario</em>'], looks: ['Guardados y diario', 'Mis <em>looks</em>'], analisis: ['Tu estilo en datos', '<em>Análisis</em>'] }[v];
+  return `<header class="top"><div><div class="eyebrow">${esc(t[0])}</div><h1>${t[1]}</h1></div><button class="icon-btn" data-act="settings" aria-label="Ajustes">${ic('gear')}</button></header>`;
+}
+function ring(score) {
+  const s = clamp(Math.round(score || 0), 0, 100); const C = 2 * Math.PI * 21;
+  const col = s >= 85 ? 'var(--ok)' : s >= 70 ? 'var(--accent)' : 'var(--muted)';
+  return `<div class="ring" title="Puntuación del look"><svg viewBox="0 0 50 50"><circle cx="25" cy="25" r="21" fill="none" stroke="var(--surface-2)" stroke-width="4"/><circle cx="25" cy="25" r="21" fill="none" stroke="${col}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(C * s / 100).toFixed(1)} ${C.toFixed(1)}"/></svg><b>${s}</b></div>`;
+}
+function collage(its, i) {
+  const n = its.length;
+  return `<div class="collage">${its.map((x, k) => {
+    let st = ''; if (n === 1) st = 'grid-column:span 2;grid-row:span 3';
+    else if (n === 2) st = 'grid-row:span 3'; else if (k === 0) st = `grid-row:span ${n === 4 || n === 6 ? 3 : 2}`;
+    const swap = i != null;
+    return `<button class="tile" style="${st}" ${swap ? `data-act="swap" data-i="${i}" data-item="${x.id}" aria-label="Cambiar ${esc(x.name)}"` : 'tabindex="-1"'}><img src="${esc(imgSrc(x))}" alt="${esc(x.name)}" loading="lazy"><span class="lbl">${esc(catShort(x.category))}</span>${swap ? `<span class="sw-ic">${ic('swap')}</span>` : ''}</button>`;
+  }).join('')}</div>`;
+}
+function lookCard(o, i, mode = 'result') {
+  const its = orderParts(o.itemIds.map(getDoc).filter(Boolean)); if (!its.length) return '';
+  const hm = harmony(its.map(x => (x.colors || [])[0])); const w = S.weather;
+  const eff = effWarmth(partsOf(its)), target = targetWarmth(w);
+  const fit = Math.abs(eff - target) < .7 ? 'Abrigo ideal' : eff < target ? 'Algo fresco' : 'Algo abrigado';
+  return `<article class="card look" id="look-${esc(o.id)}">
+    ${collage(its, mode === 'result' ? i : null)}
+    <div class="look-head"><div><h3>${esc(o.title || hm.type)}</h3><div class="palette">${its.map(x => `<span style="background:${esc((x.colors || [])[0] || '#ccc')}"></span>`).join('')}<em>${esc(hm.type)}</em></div></div>${ring(o.score ?? hm.score)}</div>
+    ${o.why ? `<p class="why">${esc(o.why)}</p>` : ''}
+    <div class="tags"><span class="tag">${ic('thermo')} ${fit} · ${w.feels ?? w.temp}°</span><span class="tag">${ic('target')} Armonía ${hm.score}</span>${o.occasion ? `<span class="tag">${esc((OCCASIONS.find(x => x.id === o.occasion) || {}).label || '')}</span>` : ''}</div>
+    ${o.tip ? `<p class="tip">${ic('sparkle')}<span>${esc(o.tip)}</span></p>` : ''}
+    ${mode === 'result' ? `<div class="look-actions">
+      <button class="btn ghost" data-act="dislike" data-i="${i}" aria-label="No me gusta">${ic('thumbdown')}</button>
+      <button class="btn soft ${o.saved ? 'done' : ''}" data-act="save-look" data-i="${i}" ${o.saved ? 'disabled' : ''}>${ic(o.saved ? 'check' : 'bookmark')} ${o.saved ? 'Guardado' : 'Guardar'}</button>
+      <button class="btn primary ${o.worn ? 'done' : ''}" data-act="wear" data-i="${i}" ${o.worn ? 'disabled' : ''}>${ic('check')} ${o.worn ? 'Registrado' : 'Me lo pongo'}</button></div>` : ''}
+  </article>`;
+}
+function onboarding() {
+  return `<div class="card onb"><svg class="big" viewBox="0 0 24 24">${IC.hanger}</svg>
+    <h2>Empieza por tu <em>armario</em></h2>
+    <p>Haz fotos a tus prendas (mejor sobre fondo liso) y Atelier detectará su color y estilo para crear tus looks.</p>
+    <div class="steps"><div><b class="n">1</b><span>Sube fotos de tus prendas: puedes elegir varias a la vez.</span></div>
+    <div><b class="n">2</b><span>La IA identifica tipo, colores, estilo y nivel de abrigo. Puedes corregir lo que quieras.</span></div>
+    <div><b class="n">3</b><span>En <b>Hoy</b>, elige la ocasión y te propone outfits según el tiempo.</span></div></div>
+    <button class="cta accent" data-act="add">${ic('plus')} Añadir prendas</button></div>`;
+}
+
+/* ---------- Render: Hoy ---------- */
+function weatherCard() {
+  const w = S.weather; const night = !w.isDay; const icn = night && (w.cond === 'clear' || w.cond === 'partly') ? 'moon' : w.cond;
+  const ls = layersFor(w);
+  const src = w.src === 'live' ? 'En directo' + (w.at ? ' · ' + new Date(w.at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '') : 'Manual';
+  return `<button class="weather w-${w.cond} ${night ? 'w-night' : ''}" data-act="weather" aria-label="Ajustar el tiempo">
+    <div class="w-top"><span>${ic('pin')}<b>${esc(w.city || 'Tu zona')}</b></span><span class="w-src">${src}</span></div>
+    <div class="w-main"><div class="w-temp">${w.temp}°</div><div class="w-ico">${wic(icn)}</div></div>
+    <div class="w-cond">${esc(CONDS[w.cond] || '')} · Sensación ${w.feels ?? w.temp}°${w.tmin != null ? ` · ${w.tmin}°/${w.tmax}°` : ''}</div>
+    <div class="w-stats"><span>${ic('drop')} ${w.rainProb ?? 0}%</span><span>${ic('wind')} ${w.wind ?? 0} km/h</span><span>${ic('hum')} ${w.hum ?? '–'}%</span><span>${ic('uv')} UV ${w.uv ?? '–'}</span></div>
+    <div class="w-advice"><span class="layers">${[1, 2, 3, 4].map(k => `<i class="${k <= ls ? 'on' : ''}"></i>`).join('')}</span><span>${esc(layerAdvice(w))}</span></div>
+  </button>`;
+}
+function viewHoy() {
+  let h = weatherCard();
+  if (!S.loaded) return h + `<div class="card shimmer" style="height:130px;margin-top:18px"></div>`;
+  if (!items().length) return h + onboarding();
+  h += `<div class="sec-label">¿Para qué te vistes?</div><div class="chips">${OCCASIONS.map(o => `<button class="chip ${S.occasion === o.id ? 'on' : ''}" data-act="occ" data-id="${o.id}">${o.label}</button>`).join('')}</div>`;
+  h += `<div class="sec-label">Estilo del día <span class="opt">opcional</span></div><div class="chips">${STYLES.map(s => `<button class="chip ${S.mood === s ? 'on' : ''}" data-act="mood" data-id="${s}">${cap(s)}</button>`).join('')}</div>`;
+  const a = S.anchor && getDoc(S.anchor);
+  if (a) h += `<div class="anchor"><img src="${esc(imgSrc(a))}" alt=""><div><div class="eyebrow">Prenda protagonista</div><b>${esc(a.name)}</b></div><button class="icon-btn sm" data-act="clear-anchor" aria-label="Quitar prenda protagonista">${ic('close')}</button></div>`;
+  const mode = AI.mode();
+  h += `<button class="cta" data-act="generate" ${S.generating ? 'disabled' : ''}>${S.generating ? '<span class="spin"></span> Diseñando tus looks…' : ic('sparkle') + ' Crear outfits'}</button>
+    <div class="cta-sub">${mode === 'local' ? 'Motor de estilo local · activa la IA en Ajustes' : 'IA de Claude · color, estilo y tiempo actual'}</div>`;
+  if (S.generating) h += `<div class="sec-label">Propuestas para hoy</div><div class="looks-list">${[0, 1].map(() => `<div class="card look"><div class="shimmer" style="height:276px;border-radius:16px"></div><div class="shimmer" style="height:18px;width:55%;margin:16px 4px 0;border-radius:9px"></div><div class="shimmer" style="height:12px;width:85%;margin:12px 4px 0;border-radius:6px"></div></div>`).join('')}</div>`;
+  else if (S.results.length) h += `<div class="sec-label row"><span>Propuestas para hoy</span><span class="src">${S.source === 'ai' ? 'IA' : 'Motor local'}</span></div><div class="looks-list">${S.results.map((o, i) => lookCard(o, i)).join('')}</div><p class="hint">Toca una prenda del look para cambiarla por otra.</p>`;
+  const off = items().length - activeItems().length;
+  if (off) h += `<p class="hint">${off} ${off === 1 ? 'prenda está' : 'prendas están'} en la lavandería y no se proponen.</p>`;
+  return h;
+}
+
+/* ---------- Render: Armario ---------- */
+function filtered() {
+  const q = norm(S.q);
+  return items().filter(i => {
+    if (S.cat !== 'all' && i.category !== S.cat) return false;
+    if (S.cat === 'all' && S.color && !(i.colors || []).some(c => colorName(c) === S.color)) return false;
+    if (S.cat !== 'all' && S.color && !(i.colors || []).some(c => colorName(c) === S.color)) return false;
+    if (q) { const hay = norm([i.name, i.sub, catLabel(i.category), ...(i.styles || []), ...(i.colors || []).map(colorName), i.pattern].join(' ')); if (!q.split(/\s+/).every(t => hay.includes(t))) return false; }
+    return true;
+  });
+}
+function itemCard(i) {
+  const badge = S.analyzing.has(i.id) ? `<span class="badge ai"><span class="spin sm"></span> Analizando</span>` : i.laundry ? `<span class="badge">${ic('wash')} Lavandería</span>` : i.needsReview ? `<span class="badge warn">Revisar</span>` : '';
+  return `<button class="item" data-act="item" data-id="${esc(i.id)}"><div class="ph"><img src="${esc(imgSrc(i))}" alt="" loading="lazy">${badge}${i.fav ? `<span class="fav">${ic('heart')}</span>` : ''}</div>
+    <div class="meta"><b>${esc(i.name)}</b><span>${esc(catLabel(i.category))}${i.sub ? ' · ' + esc(i.sub) : ''}</span><i class="sw">${(i.colors || []).map(c => `<em style="background:${esc(c)}"></em>`).join('')}</i></div></button>`;
+}
+function gridHTML() { const l = filtered(); if (!l.length) return `<p class="empty-small">No hay prendas con estos filtros.</p>`; return `<div class="grid">${l.map(itemCard).join('')}</div>`; }
+function viewArmario() {
+  if (!S.loaded) return `<div class="grid">${[0, 1, 2, 3].map(() => `<div class="card shimmer" style="aspect-ratio:4/5.9"></div>`).join('')}</div>`;
+  const its = items(); if (!its.length) return onboarding();
+  const cnt = c => its.filter(i => i.category === c).length;
+  const pal = {}; its.forEach(i => (i.colors || []).slice(0, 1).forEach(c => { const n = colorName(c); pal[n] = (pal[n] || 0) + 1; }));
+  const pl = Object.entries(pal).sort((a, b) => b[1] - a[1]);
+  return `<div class="search">${ic('search')}<input id="q" type="search" placeholder="Buscar: “azul”, “vaqueros”, “elegante”…" value="${esc(S.q)}" autocomplete="off"></div>
+    <div class="chips"><button class="chip ${S.cat === 'all' ? 'on' : ''}" data-act="cat" data-id="all">Todo<span class="n">${its.length}</span></button>${CATS.filter(c => cnt(c.id)).map(c => `<button class="chip ${S.cat === c.id ? 'on' : ''}" data-act="cat" data-id="${c.id}">${c.label}<span class="n">${cnt(c.id)}</span></button>`).join('')}</div>
+    ${pl.length > 1 ? `<div class="dots">${pl.map(([n]) => `<button class="dot ${S.color === n ? 'on' : ''}" style="--c:${PAL_HEX[n]}" data-act="color" data-id="${esc(n)}" aria-label="${esc(n)}" title="${esc(n)}"></button>`).join('')}</div>` : '<div style="height:12px"></div>'}
+    <div id="grid-wrap">${gridHTML()}</div>`;
+}
+
+/* ---------- Render: Looks ---------- */
+function viewLooks() {
+  const seg = `<div class="seg"><button class="${S.looksTab === 'saved' ? 'on' : ''}" data-act="looks-tab" data-id="saved">Guardados</button><button class="${S.looksTab === 'diary' ? 'on' : ''}" data-act="looks-tab" data-id="diary">Diario</button></div>`;
+  if (S.looksTab === 'saved') {
+    const os = outfits();
+    if (!os.length) return seg + `<div class="card onb"><svg class="big" viewBox="0 0 24 24">${IC.bookmark}</svg><h2>Aún no hay <em>looks</em></h2><p>Cuando un outfit te guste, pulsa «Guardar» y lo tendrás aquí para repetirlo.</p></div>`;
+    return seg + `<div class="minis">${os.map(o => { const its = orderParts(o.itemIds.map(getDoc).filter(Boolean)); const th = its.slice(0, 4); while (th.length < 4) th.push(null); return `<button class="mini" data-act="look" data-id="${esc(o.id)}"><div class="q">${th.map(x => x ? `<img src="${esc(imgSrc(x))}" alt="" loading="lazy">` : '<i></i>').join('')}</div><b>${esc(o.title || 'Look')}</b><span>${new Date(o.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · ${its.length} prendas</span></button>`; }).join('')}</div>`;
+  }
+  const ls = logs();
+  const days = new Set(ls.map(l => l.date));
+  const now = new Date(); const y = now.getFullYear(), m = now.getMonth(); const first = new Date(y, m, 1); const offset = (first.getDay() + 6) % 7; const dim = new Date(y, m + 1, 0).getDate();
+  let cal = `<div class="eyebrow" style="margin:0 0 10px">${now.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })} · ${[...days].filter(d => d.startsWith(todayISO().slice(0, 7))).length} días con look</div><div class="cal">${['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(d => `<div class="h">${d}</div>`).join('')}`;
+  for (let k = 0; k < offset; k++) cal += '<div class="h"></div>';
+  for (let dd = 1; dd <= dim; dd++) { const iso = todayISO(new Date(y, m, dd)); cal += `<div class="${days.has(iso) ? 'on' : ''} ${iso === todayISO() ? 'today' : ''}">${dd}</div>`; }
+  cal += '</div>';
+  if (!ls.length) return seg + cal + `<p class="hint">Pulsa «Me lo pongo» en un outfit para ir llenando tu diario. Así Atelier evita repetirte prendas y detecta las que tienes olvidadas.</p>`;
+  return seg + cal + `<div class="diary">${ls.slice(0, 40).map(l => { const d = new Date(l.date + 'T12:00:00'); return l.entries.map(e => `<div class="dday"><div class="dt"><b>${d.getDate()}</b><span>${d.toLocaleDateString('es-ES', { month: 'short' })}</span></div><div class="thumbs">${orderParts(e.itemIds.map(getDoc).filter(Boolean)).map(x => `<img src="${esc(imgSrc(x))}" alt="${esc(x.name)}" loading="lazy">`).join('')}${e.title ? `<small>${esc(e.title)}</small>` : ''}</div></div>`).join(''); }).join('')}</div>`;
+}
+
+/* ---------- Render: Análisis ---------- */
+function viewInsights() {
+  if (!S.loaded) return `<div class="card shimmer" style="height:200px"></div>`;
+  const its = items(); if (!its.length) return onboarding();
+  const by = c => its.filter(i => i.category === c).length;
+  const combos = (by('top') * by('bottom') + by('dress')) * Math.max(1, by('shoes'));
+  const worn = logs().reduce((s, l) => s + l.entries.length, 0);
+  const pal = {}; its.forEach(i => { const h = (i.colors || [])[0]; if (!h) return; const n = colorName(h); pal[n] = (pal[n] || 0) + 1; });
+  const pl = Object.entries(pal).sort((a, b) => b[1] - a[1]);
+  const neutralPct = Math.round(its.filter(i => isNeutral((i.colors || [])[0])).length / its.length * 100);
+  const palMsg = neutralPct >= 85 ? `Tu armario es un ${neutralPct}% neutro: muy versátil, pero un par de prendas de color darían vida a tus looks.` : neutralPct >= 55 ? `Un ${neutralPct}% de tus prendas son neutras: el equilibrio ideal para combinar sin esfuerzo.` : `Solo un ${neutralPct}% de tus prendas son neutras: añadir básicos (blanco, negro, beige, marino) multiplicará tus combinaciones.`;
+  const maxC = Math.max(...CATS.map(c => by(c.id)), 1);
+  const forgotten = its.filter(i => !i.laundry && (!i.lastWorn || daysSince(i.lastWorn) >= 21)).sort((a, b) => (a.lastWorn ? 1 : 0) - (b.lastWorn ? 1 : 0) || (a.lastWorn || '').localeCompare(b.lastWorn || '')).slice(0, 12);
+  const topW = its.filter(i => i.wearCount).sort((a, b) => b.wearCount - a.wearCount).slice(0, 5);
+  let h = `<div class="stats3"><div class="stat card"><b>${its.length}</b><span>prendas</span></div><div class="stat card"><b>${combos > 999 ? (combos / 1000).toFixed(1) + 'k' : combos}</b><span>outfits posibles</span></div><div class="stat card"><b>${worn}</b><span>looks puestos</span></div></div>`;
+  h += `<div class="card pad" style="margin-top:14px"><h3>Paleta de tu armario</h3><div class="palbar">${pl.map(([n, c]) => `<i style="flex:${c};background:${PAL_HEX[n]}" title="${esc(n)}"></i>`).join('')}</div><div class="legend">${pl.slice(0, 10).map(([n, c]) => `<span><em style="background:${PAL_HEX[n]}"></em>${esc(n)} · ${c}</span>`).join('')}</div><p class="note">${esc(palMsg)}</p></div>`;
+  h += `<div class="card pad" style="margin-top:14px"><h3 style="margin-bottom:12px">Por categoría</h3><div class="bars">${CATS.map(c => `<div class="bar"><span>${c.label}</span><i><u style="width:${by(c.id) / maxC * 100}%"></u></i><b>${by(c.id)}</b></div>`).join('')}</div></div>`;
+  if (forgotten.length) h += `<div class="sec-label row"><span>Prendas olvidadas</span><span class="opt">+21 días sin usar</span></div><div class="hscroll">${forgotten.map(i => `<button class="fcard" data-act="rescue" data-id="${esc(i.id)}"><img src="${esc(imgSrc(i))}" alt="" loading="lazy"><div><b>${esc(i.name)}</b><span>${i.lastWorn ? `hace ${daysSince(i.lastWorn)} días` : 'sin estrenar'} · Crear look</span></div></button>`).join('')}</div>`;
+  if (topW.length) h += `<div class="card pad" style="margin-top:14px"><h3 style="margin-bottom:6px">Tus imprescindibles</h3>${topW.map(i => `<div class="toprow"><img src="${esc(imgSrc(i))}" alt=""><div><b>${esc(i.name)}</b><span>${i.wearCount} ${i.wearCount === 1 ? 'uso' : 'usos'}${i.price ? ` · ${(i.price / i.wearCount).toFixed(2).replace('.', ',')} € por uso` : ''}</span></div></div>`).join('')}</div>`;
+  h += `<div class="card feature"><div class="fi">${ic('bag')}</div><h3>Compras inteligentes</h3><p>Descubre qué 3 prendas desbloquearían más combinaciones con lo que ya tienes, en vez de comprar por impulso.</p>
+    ${S.shop ? `<div style="margin-top:12px">${S.shop.map(s => `<div class="sugg"><i class="c" style="background:${esc(s.color || '#ccc')}"></i><div><b>${esc(s.title)}</b><span>${esc(s.why)}</span></div></div>`).join('')}</div>` : ''}
+    <button class="btn soft full" data-act="shop" ${S.shopBusy ? 'disabled' : ''}>${S.shopBusy ? '<span class="spin sm"></span> Analizando tu armario…' : ic('sparkle') + (S.shop ? ' Volver a analizar' : ' Analizar mi armario')}</button></div>`;
+  h += `<div class="card feature"><div class="fi">${ic('suitcase')}</div><h3>Maleta inteligente</h3><p>Dime destino y días y te preparo una maleta cápsula con prendas que combinan entre sí y un look para cada día.</p><button class="btn soft full" data-act="pack">${ic('suitcase')} Preparar maleta</button></div>`;
+  return h;
+}
+
+/* ---------- Render: main ---------- */
+function render() {
+  const v = S.view;
+  const body = v === 'hoy' ? viewHoy() : v === 'armario' ? viewArmario() : v === 'looks' ? viewLooks() : viewInsights();
+  $('#view').innerHTML = header(v) + body;
+  $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === v));
+  $('#fab').hidden = !(v === 'armario' && S.loaded && items().length);
+}
+function renderTabs() {
+  const tabs = [['hoy', 'sparkle', 'Hoy'], ['armario', 'hanger', 'Armario'], ['looks', 'bookmark', 'Looks'], ['analisis', 'chart', 'Análisis']];
+  $('#tabbar').innerHTML = tabs.map(([id, i, l]) => `<button class="tab" data-tab="${id}" data-act="tab">${ic(i)}<span>${l}</span></button>`).join('');
+  $('#fab').innerHTML = ic('plus');
+}
+function go(v) { if (v === S.view) return; S.view = v; try { history.replaceState(null, '', '#' + v); } catch { } render(); window.scrollTo(0, 0); }
+
+/* ---------- Sheets ---------- */
+function openSheet(kind, data = {}) {
+  S.sheet = { kind, ...data }; const el = $('#sheet');
+  el.innerHTML = '<div class="grab"></div>' + sheetHTML(); el.scrollTop = 0;
+  $('#backdrop').classList.add('on'); requestAnimationFrame(() => el.classList.add('open')); document.body.classList.add('locked');
+}
+function refreshSheet() { if (!S.sheet) return; const el = $('#sheet'); const st = el.scrollTop; el.innerHTML = '<div class="grab"></div>' + sheetHTML(); el.scrollTop = st; }
+function closeSheet() { S.sheet = null; S.edit = null; $('#sheet').classList.remove('open'); $('#backdrop').classList.remove('on'); document.body.classList.remove('locked'); }
+function sheetHTML() {
+  const k = S.sheet.kind;
+  return k === 'item' ? itemSheet() : k === 'weather' ? weatherSheet() : k === 'settings' ? settingsSheet() : k === 'swap' ? swapSheet() : k === 'look' ? lookSheet() : k === 'pack' ? packSheet() : '';
+}
+const shead = (title) => `<div class="sheet-head"><h2>${title}</h2><button class="icon-btn sm" data-act="close" aria-label="Cerrar">${ic('close')}</button></div>`;
+
+function itemSheet() {
+  const e = S.edit; if (!e) return ''; const an = S.analyzing.has(e.id);
+  const subs = SUBS[e.category] || [];
+  return shead(S.sheet.isNew ? 'Nueva <em>prenda</em>' : 'Editar <em>prenda</em>') + `
+    <div class="ed-photo ${an ? 'scanning' : ''}"><img src="${esc(imgSrc(e))}" alt="">${an ? '<div class="ai-scan"><span class="spin"></span> La IA está analizando tu prenda…</div>' : ''}</div>
+    ${AI.canSee() ? `<button class="btn soft full" data-act="reanalyze" ${an ? 'disabled' : ''}>${ic('sparkle')} ${e.needsReview ? 'Analizar con IA' : 'Volver a analizar con IA'}</button>` : (e.needsReview ? `<p class="note">Revisa la categoría y los datos: sin IA solo se detectan los colores automáticamente.</p>` : '')}
+    <label class="fl">Nombre<input type="text" data-f="name" value="${esc(e.name)}" maxlength="60"></label>
+    <div class="fl">Categoría<div class="seg6">${CATS.map(c => `<button class="${e.category === c.id ? 'on' : ''}" data-act="f-cat" data-id="${c.id}">${c.label}</button>`).join('')}</div></div>
+    <label class="fl">Tipo<input type="text" data-f="sub" value="${esc(e.sub)}" list="dl-sub" placeholder="p. ej. ${esc(subs[0] || '')}"><datalist id="dl-sub">${subs.map(s => `<option value="${esc(s)}">`).join('')}</datalist></label>
+    <div class="fl">Colores <span class="opt">· detectados de la foto, toca para ajustar</span><div class="swatches">${(e.colors || []).map((c, k) => `<div class="swatch"><label><span style="background:${esc(c)}" id="sw-${k}"></span><input type="color" value="${esc(c)}" data-color="${k}" aria-label="Color ${k + 1}"></label><small id="swn-${k}">${esc(colorName(c))}</small>${(e.colors || []).length > 1 ? `<button class="x" data-act="color-del" data-k="${k}" aria-label="Quitar color">×</button>` : ''}</div>`).join('')}${(e.colors || []).length < 3 ? `<div class="swatch add"><label><span>+</span><input type="color" value="#888888" data-color="new" aria-label="Añadir color"></label><small>Añadir</small></div>` : ''}</div></div>
+    <label class="fl">Estampado<select data-f="pattern">${PATTERNS.map(p => `<option value="${esc(p)}" ${e.pattern === p ? 'selected' : ''}>${esc(cap(p))}</option>`).join('')}</select></label>
+    <div class="fl">Estilos<div class="chips wrap" style="margin-top:8px">${STYLES.map(s => `<button class="chip sm ${(e.styles || []).includes(s) ? 'on' : ''}" data-act="f-style" data-id="${s}">${cap(s)}</button>`).join('')}</div></div>
+    <label class="fl">Abrigo <b class="val" id="v-warmth">${WARM_L[(e.warmth || 2) - 1]}</b><input type="range" min="1" max="5" step="1" value="${e.warmth || 2}" data-f="warmth"></label>
+    <label class="fl">Formalidad <b class="val" id="v-formality">${FORM_L[(e.formality || 2) - 1]}</b><input type="range" min="1" max="5" step="1" value="${e.formality || 2}" data-f="formality"></label>
+    <label class="fl row-toggle"><span>Impermeable o apta para lluvia</span><input type="checkbox" class="tgl" data-f="waterproof" ${e.waterproof ? 'checked' : ''}></label>
+    <label class="fl">Precio <span class="opt">· opcional, para el coste por uso</span><input type="number" inputmode="decimal" min="0" step="0.01" data-f="price" value="${e.price ?? ''}" placeholder="€"></label>
+    <div class="statrow"><div class="stat"><b>${e.wearCount || 0}</b><span>usos</span></div><div class="stat"><b>${e.lastWorn ? daysSince(e.lastWorn) + 'd' : '—'}</b><span>último uso</span></div><div class="stat"><b>${e.price && e.wearCount ? (e.price / e.wearCount).toFixed(0) + '€' : '—'}</b><span>coste/uso</span></div></div>
+    <div class="actrow">
+      <button class="btn ${e.fav ? 'on' : ''}" data-act="f-toggle" data-id="fav">${ic('heart')} Favorita</button>
+      <button class="btn ${e.laundry ? 'on' : ''}" data-act="f-toggle" data-id="laundry">${ic('wash')} Lavandería</button>
+      <button class="btn" data-act="anchor">${ic('sparkle')} Crear looks</button>
+    </div>
+    <button class="cta" data-act="item-save">${ic('check')} Guardar prenda</button>
+    <button class="btn danger full" data-act="item-del">${ic('trash')} Eliminar prenda</button>`;
+}
+function weatherSheet() {
+  const w = S.sheet.draft;
+  return shead('El <em>tiempo</em>') + `
+    <p class="note" style="margin-top:0">Los outfits se adaptan a la sensación térmica, la lluvia, el viento y el UV. ${S.inClaude ? 'Dentro de Claude la app no puede conectarse a servicios externos del tiempo: ajústalo aquí en segundos o usa la versión instalable para que se actualice solo.' : settings().manual ? 'Ahora mismo usas un tiempo manual. Pulsa «Usar mi ubicación» para que vuelva a actualizarse solo.' : settings().loc && !settings().loc.auto ? `Tiempo en directo fijado en ${esc(settings().loc.city)}. Pulsa «Usar mi ubicación» para que siga tu posición.` : 'Se actualiza solo con tu ubicación cada 30 minutos y al abrir la app. También puedes fijar una ciudad o ajustarlo a mano.'}</p>
+    <div class="fl">Ciudad<div style="display:flex;gap:8px;margin-top:7px"><input class="inp" style="margin:0" type="text" id="wx-city" value="${esc(w.city || '')}" placeholder="p. ej. San Cristóbal de La Laguna"><button class="btn" data-act="wx-search" style="flex:none">${ic('search')}</button></div></div>
+    <button class="btn soft full" data-act="wx-geo" ${S.wxBusy ? 'disabled' : ''}>${S.wxBusy ? '<span class="spin sm"></span> Consultando…' : ic('pin') + ' Usar mi ubicación (en directo)'}</button>
+    ${S.wxMsg ? `<p class="note">${esc(S.wxMsg)}</p>` : ''}
+    <div class="sec-label" style="margin-top:24px">Ajuste manual</div>
+    <div class="chips wrap">${Object.entries(CONDS).map(([k, l]) => `<button class="chip sm ${w.cond === k ? 'on' : ''}" data-act="wx-cond" data-id="${k}">${l}</button>`).join('')}</div>
+    <label class="fl">Temperatura <b class="val" id="wv-temp">${w.temp}°</b><input type="range" min="-10" max="44" value="${w.temp}" data-w="temp"></label>
+    <label class="fl">Probabilidad de lluvia <b class="val" id="wv-rainProb">${w.rainProb}%</b><input type="range" min="0" max="100" step="5" value="${w.rainProb}" data-w="rainProb"></label>
+    <label class="fl">Viento <b class="val" id="wv-wind">${w.wind} km/h</b><input type="range" min="0" max="90" step="1" value="${w.wind}" data-w="wind"></label>
+    <label class="fl">Humedad <b class="val" id="wv-hum">${w.hum}%</b><input type="range" min="0" max="100" step="5" value="${w.hum}" data-w="hum"></label>
+    <label class="fl">Índice UV <b class="val" id="wv-uv">${w.uv}</b><input type="range" min="0" max="11" step="1" value="${w.uv}" data-w="uv"></label>
+    <label class="fl row-toggle"><span>Es de día</span><input type="checkbox" class="tgl" data-w="isDay" ${w.isDay ? 'checked' : ''}></label>
+    <button class="cta" data-act="wx-save">${ic('check')} Usar este tiempo</button>`;
+}
+function settingsSheet() {
+  const m = AI.mode();
+  const aiTxt = m === 'claude' ? `<b>IA de Claude activa.</b> Analiza tus fotos${AI.images ? '' : ' (sin visión en esta vista: solo colores automáticos)'} y crea los outfits.` : m === 'api' ? '<b>IA activa con tu clave de API.</b>' : '<b>Motor de estilo local.</b> Crea outfits con reglas de color, estilo y tiempo, sin IA.';
+  const stTxt = Store.mode === 'cloud' ? '<b>Sincronizado con tu cuenta de Claude.</b> Lo verás igual en el iPhone y en el Mac.' : Store.mode === 'local' ? '<b>Guardado en este dispositivo.</b> Si borras los datos de Safari, se pierde: haz copias.' : '<b>Sin almacenamiento disponible.</b> Los datos se perderán al cerrar.';
+  return shead('<em>Ajustes</em>') + `
+    <div class="card pad"><div style="display:flex;gap:10px;align-items:center">${ic('sparkle')}<h3>Inteligencia artificial</h3></div><p class="note">${aiTxt}</p>
+    ${!AI.sample ? `<label class="fl">Clave de API de Anthropic <span class="opt">· opcional, se guarda solo en este dispositivo</span><input type="text" id="api-key" value="${esc(AI.key())}" placeholder="sk-ant-…" autocomplete="off" autocapitalize="off" spellcheck="false"></label><button class="btn soft full" data-act="key-save">Guardar clave</button>` : ''}</div>
+    <div class="card pad" style="margin-top:12px"><div style="display:flex;gap:10px;align-items:center">${ic('cloudsync')}<h3>Tus datos</h3></div><p class="note">${stTxt}</p>
+      <button class="btn soft full" data-act="export">${ic('copy')} Copiar copia de seguridad</button>
+      <label class="fl">Restaurar copia<textarea id="import-txt" placeholder="Pega aquí una copia de seguridad"></textarea></label>
+      <button class="btn full" data-act="import">Importar</button>
+      <button class="btn danger full" data-act="wipe">${ic('trash')} Borrar todo el armario</button></div>
+    <div class="card pad" style="margin-top:12px"><div style="display:flex;gap:10px;align-items:center">${ic('phone')}<h3>Instalar en el iPhone</h3></div>
+      <div class="steps"><div><b class="n">1</b><span>Abre esta app en <b>Safari</b>.</span></div><div><b class="n">2</b><span>Pulsa <b>Compartir</b> (el cuadrado con la flecha).</span></div><div><b class="n">3</b><span>Elige <b>Añadir a pantalla de inicio</b>. Se abrirá a pantalla completa, como una app.</span></div></div></div>
+    <p class="hint">Atelier · hecho con Claude</p>`;
+}
+function swapSheet() {
+  const o = S.results[S.sheet.i]; if (!o) return '';
+  const cur = getDoc(S.sheet.itemId); if (!cur) return '';
+  const ctx = ctxNow(); const others = o.itemIds.filter(id => id !== cur.id).map(getDoc).filter(Boolean);
+  const alts = activeItems().filter(i => i.category === cur.category).map(i => ({ i, sc: scoreOutfit(partsOf([...others, i]), ctx) })).sort((a, b) => b.sc.total - a.sc.total);
+  const optional = ['outer', 'accessory', 'shoes'].includes(cur.category);
+  return shead(`Cambiar <em>${esc(catShort(cur.category).toLowerCase())}</em>`) + `<p class="note" style="margin-top:0">Ordenado por lo bien que combina con el resto del look y con el tiempo.</p><div style="margin-top:12px">` +
+    alts.map(({ i, sc }) => `<button class="alt-row ${i.id === cur.id ? 'cur' : ''}" data-act="swap-pick" data-id="${esc(i.id)}"><img src="${esc(imgSrc(i))}" alt=""><div><b>${esc(i.name)}</b><span>${esc(sc.h.type)} · ${(i.colors || []).map(colorName).join(', ')}</span></div><span class="pill">${Math.round(sc.total)}</span></button>`).join('') +
+    `</div>${optional ? `<button class="btn full" data-act="swap-remove">Quitar del look</button>` : ''}`;
+}
+function lookSheet() {
+  const o = getDoc(S.sheet.id); if (!o) return '';
+  return shead('Look <em>guardado</em>') + `<div class="looks-list">${lookCard(o, null, 'saved')}</div>
+    <div class="look-actions"><button class="btn soft" data-act="look-del">${ic('trash')} Eliminar</button><button class="btn primary" data-act="look-wear">${ic('check')} Me lo pongo hoy</button></div>`;
+}
+function packSheet() {
+  const f = S.sheet.form; const r = S.pack;
+  let res = '';
+  if (r) {
+    const its = r.items.map(getDoc).filter(Boolean);
+    res = `<div class="sec-label" style="margin-top:24px">Tu maleta · ${its.length} prendas</div>${r.climate ? `<p class="note" style="margin-top:0">${esc(r.climate)}</p>` : ''}<div class="pack-list">${its.map(x => `<img src="${esc(imgSrc(x))}" alt="${esc(x.name)}" title="${esc(x.name)}">`).join('')}</div>
+      <div class="sec-label">Un look por día</div>${r.days.map(d => `<div class="pday"><b>Día ${d.day}${d.title ? ' · ' + esc(d.title) : ''}</b><div class="thumbs">${orderParts(d.itemIds.map(getDoc).filter(Boolean)).map(x => `<img src="${esc(imgSrc(x))}" alt="${esc(x.name)}">`).join('')}</div>${d.note ? `<p>${esc(d.note)}</p>` : ''}</div>`).join('')}
+      ${r.tips && r.tips.length ? `<div class="note">${r.tips.map(t => '• ' + esc(t)).join('<br>')}</div>` : ''}`;
+  }
+  return shead('Maleta <em>inteligente</em>') + `
+    <label class="fl">Destino<input type="text" id="pk-dest" value="${esc(f.dest)}" placeholder="p. ej. Madrid"></label>
+    <label class="fl">Días <b class="val" id="pv-days">${f.days}</b><input type="range" min="1" max="14" value="${f.days}" id="pk-days"></label>
+    <label class="fl">Temperatura prevista <span class="opt">· opcional${AI.available() ? ', si la dejas vacía la IA estima el clima típico' : ''}</span><input type="number" inputmode="numeric" id="pk-temp" value="${f.temp ?? ''}" placeholder="°C"></label>
+    <label class="fl row-toggle"><span>Puede llover</span><input type="checkbox" class="tgl" id="pk-rain" ${f.rain ? 'checked' : ''}></label>
+    <div class="fl">Planes<div class="chips wrap" style="margin-top:8px">${PACK_PLANS.map(p => `<button class="chip sm ${f.plans.includes(p) ? 'on' : ''}" data-act="pk-plan" data-id="${p}">${cap(p)}</button>`).join('')}</div></div>
+    <button class="cta" data-act="pack-run" ${S.packBusy ? 'disabled' : ''}>${S.packBusy ? '<span class="spin"></span> Preparando tu maleta…' : ic('suitcase') + ' Preparar maleta'}</button>${res}`;
+}
+
+/* ---------- Actions ---------- */
+async function onFiles(files) {
+  const arr = [...files].filter(f => /^image\//.test(f.type) || /\.(heic|heif|jpe?g|png|webp)$/i.test(f.name)).slice(0, 24);
+  if (!arr.length) return;
+  toast(arr.length > 1 ? `Procesando ${arr.length} fotos…` : 'Procesando la foto…');
+  const made = [];
+  for (const f of arr) {
+    try {
+      const p = await processFile(f); const ref = await Store.saveImage(p);
+      const it = { id: uid('it'), type: 'item', name: 'Prenda nueva', category: 'top', sub: '', colors: p.colors, pattern: 'liso', styles: [], warmth: 2, formality: 2, waterproof: false, price: null, fav: false, laundry: false, wearCount: 0, lastWorn: null, createdAt: Date.now(), needsReview: true, ...ref };
+      const guess = colorName(p.colors[0]); it.name = `Prenda ${guess.toLowerCase()}`;
+      if (AI.canSee()) S.analyzing.add(it.id);
+      await save(it); made.push({ it, blob: p.aiBlob });
+    } catch (e) { toast('No he podido leer una de las fotos'); }
+  }
+  if (!made.length) return;
+  S.view !== 'armario' ? go('armario') : render();
+  if (made.length === 1) openItem(made[0].it.id, true);
+  if (!AI.canSee()) return;
+  for (const m of made) {
+    try {
+      const r = await analyzeBlob(m.blob, m.it.colors);
+      const cur = getDoc(m.it.id); if (!cur) continue;
+      await save({ ...clone(cur), ...r, needsReview: false });
+      if (S.edit && S.edit.id === m.it.id) { const t = S.edit._touched || []; const merged = { ...S.edit }; for (const k of Object.keys(r)) if (!t.includes(k)) merged[k] = r[k]; merged.needsReview = false; S.edit = merged; }
+    } catch (e) { made.forEach(x => S.analyzing.delete(x.it.id)); aiError(e); render(); if (S.sheet && S.sheet.kind === 'item') refreshSheet(); break; }
+    S.analyzing.delete(m.it.id); render(); if (S.sheet && S.sheet.kind === 'item' && S.edit && S.edit.id === m.it.id) refreshSheet();
+  }
+}
+function openItem(id, isNew = false) { const it = getDoc(id); if (!it) return; S.edit = { ...clone(it), _touched: [] }; openSheet('item', { isNew }); }
+const touch = f => { if (S.edit) { S.edit._touched = [...new Set([...(S.edit._touched || []), f])]; } };
+
+async function generate() {
+  const ctx = ctxNow();
+  if (!canGenerate(ctx)) { toast('Necesitas al menos una prenda de arriba y una de abajo, o un vestido'); return; }
+  S.generating = true; S.results = []; render();
+  setTimeout(() => { const el = $('.looks-list'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
+  let res = null, src = 'local';
+  if (AI.available()) { try { res = await aiOutfits(ctx, 3); if (res.length) src = 'ai'; } catch (e) { aiError(e); res = null; } }
+  if (!res || !res.length) { await sleep(450); res = localOutfits(ctx, 3); src = 'local'; }
+  S.results = res.map(o => enrich({ ...o, occasion: S.occasion })); S.source = src; S.generating = false; render();
+  const el = $('.looks-list'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+async function addFeedback(kind, ids) { const fb = clone(feedback()); const sig = sigOf(ids); if (!sig) return; const arr = (fb[kind] || []).filter(s => s !== sig); arr.push(sig); fb[kind] = arr.slice(-60); if (kind === 'likes') fb.dislikes = (fb.dislikes || []).filter(s => s !== sig); await save(fb); }
+async function wearIds(ids, title) {
+  const date = todayISO();
+  for (const id of ids) { const it = getDoc(id); if (!it) continue; await save({ ...clone(it), wearCount: (it.wearCount || 0) + 1, lastWorn: date }); }
+  const lid = 'lg_' + date; const cur = getDoc(lid); const log = cur ? clone(cur) : { id: lid, type: 'log', date, entries: [] };
+  log.entries.push({ itemIds: ids, title: title || '', at: Date.now() }); await save(log);
+}
+async function saveLook(o) { const doc = { id: uid('of'), type: 'outfit', itemIds: o.itemIds, title: o.title || '', why: o.why || '', tip: o.tip || '', score: o.score ?? null, occasion: o.occasion || null, createdAt: Date.now() }; await save(doc); await addFeedback('likes', o.itemIds); }
+
+function localShop() {
+  const its = items(); const by = c => its.filter(i => i.category === c);
+  const out = []; const has = (cat, pred) => by(cat).some(pred);
+  const light = i => rgbToHsl(...hexToRgb((i.colors || [])[0]))[2];
+  if (!by('shoes').length) out.push({ title: 'Zapatillas blancas minimalistas', why: 'No tienes calzado registrado: unas blancas combinan con casi todo lo que ya tienes.', color: '#f4f4f1' });
+  if (!has('top', i => ['Blanco', 'Crudo'].includes(colorName((i.colors || [])[0])))) out.push({ title: 'Camiseta blanca de calidad', why: `El básico más versátil: combinaría con tus ${by('bottom').length} prendas de abajo.`, color: '#f6f6f3' });
+  if (!has('bottom', i => light(i) < .3 || ['Azul marino', 'Denim', 'Negro'].includes(colorName((i.colors || [])[0])))) out.push({ title: 'Vaqueros oscuros o pantalón negro', why: `Una base oscura equilibra tus partes de arriba (${by('top').length}) y sirve de día y de noche.`, color: '#1c2847' });
+  if (!has('outer', i => i.waterproof)) out.push({ title: 'Chaqueta impermeable ligera', why: 'Para los días de lluvia o viento: ahora mismo ningún abrigo tuyo es apto para lluvia.', color: '#5d6a39' });
+  if (!has('outer', i => (i.formality || 2) >= 4) && !has('top', i => (i.formality || 2) >= 4)) out.push({ title: 'Blazer en azul marino o camel', why: 'Sube de nivel cualquier look casual para trabajo, citas o eventos.', color: '#1c2847' });
+  const neutral = its.filter(i => isNeutral((i.colors || [])[0])).length / Math.max(1, its.length);
+  if (neutral > .85) { const top = its.map(i => (i.colors || [])[0]).find(Boolean) || '#888'; out.push({ title: 'Una prenda de color acento', why: 'Tu armario es casi todo neutro: un jersey o camisa en terracota, verde oliva o burdeos aportaría personalidad.', color: '#b65a3a' }); }
+  else if (neutral < .5) out.push({ title: 'Más básicos neutros', why: 'Tienes muchos colores vivos: prendas beige, gris o marino harán que todo combine mejor.', color: '#d5c2a2' });
+  if (!by('accessory').length) out.push({ title: 'Un cinturón de piel marrón', why: 'Pequeño detalle que une colores y estiliza cualquier conjunto.', color: '#6d4a2e' });
+  return out.slice(0, 3);
+}
+async function shop() {
+  S.shopBusy = true; render();
+  let r = null;
+  if (AI.available()) {
+    try {
+      const v = await AI.json(`Eres un estilista personal. Analiza este armario y propone las 3 prendas que, compradas, desbloquearían MÁS combinaciones nuevas con lo que ya tiene (piensa en teoría del color, huecos por categoría, estación y ocasiones). Sé concreto con color y tipo.
+ARMARIO: ${JSON.stringify(compactWardrobe(items()))}
+Responde SOLO JSON: {"suggestions":[{"title":"prenda concreta con color","why":"1-2 frases: por qué y con qué prendas suyas combinaría (menciona nombres)","color":"#hex"}]}`, { tier: 'default' });
+      r = (v.suggestions || []).slice(0, 3).map(s => ({ title: String(s.title || ''), why: String(s.why || ''), color: /^#[0-9a-f]{6}$/i.test(s.color) ? s.color : '#cccccc' })).filter(s => s.title);
+    } catch (e) { aiError(e); }
+  }
+  if (!r || !r.length) r = localShop();
+  if (!r.length) r = [{ title: '¡Tu armario está muy completo!', why: 'No veo huecos importantes. Antes de comprar, prueba a rescatar tus prendas olvidadas.', color: '#2e8a4e' }];
+  S.shop = r; S.shopBusy = false; render();
+}
+function localPack(f) {
+  const w = { temp: f.temp ?? 20, cond: f.rain ? 'rain' : 'partly', rainProb: f.rain ? 70 : 10, wind: 10, hum: 60, uv: 5, isDay: true }; w.feels = w.temp;
+  const occ = f.plans.includes('trabajo') ? OCCASIONS[2] : f.plans.includes('noche') ? OCCASIONS[4] : OCCASIONS[0];
+  const ctx = { weather: w, target: targetWarmth(w), wet: isWet(w), formality: occ.f, occasion: occ, mood: null, anchor: null, likes: new Set(), dislikes: new Set() };
+  const all = activeItems(); const by = c => all.filter(i => i.category === c);
+  const vers = new Map();
+  const tops = by('top'), bots = by('bottom');
+  for (const t of tops) for (const b of bots) { const s = scoreOutfit({ top: t, bottom: b }, ctx).total; if (s >= 72) { vers.set(t.id, (vers.get(t.id) || 0) + s); vers.set(b.id, (vers.get(b.id) || 0) + s); } }
+  const pick = (arr, k) => [...arr].sort((a, b) => (vers.get(b.id) || 0) - (vers.get(a.id) || 0) || (scoreOutfit({ [a.category]: a }, ctx).wS - scoreOutfit({ [b.category]: b }, ctx).wS)).slice(0, k);
+  const nT = clamp(Math.ceil(f.days * 0.75), 2, 7), nB = clamp(Math.ceil(f.days / 2.5), 1, 4);
+  const selT = pick(tops, nT), selB = pick(bots, nB), selD = by('dress').slice(0, f.days > 3 ? 2 : 1).filter(() => f.plans.includes('noche') || f.plans.includes('playa'));
+  const selS = by('shoes').sort((a, b) => scoreOutfit({ top: selT[0], bottom: selB[0], shoes: b }, ctx).total - scoreOutfit({ top: selT[0], bottom: selB[0], shoes: a }, ctx).total).slice(0, 2);
+  const selO = needsOuter(w) ? by('outer').sort((a, b) => scoreOutfit({ top: selT[0], bottom: selB[0], outer: b }, ctx).total - scoreOutfit({ top: selT[0], bottom: selB[0], outer: a }, ctx).total).slice(0, 1) : [];
+  const set = [...selT, ...selB, ...selD, ...selS, ...selO];
+  const combos = [];
+  for (const t of selT) for (const b of selB) { const p = { top: t, bottom: b }; if (selS[0]) p.shoes = selS[0]; if (selO[0]) p.outer = selO[0]; combos.push({ p, s: scoreOutfit(p, ctx).total }); }
+  selD.forEach(d => { const p = { dress: d }; if (selS[0]) p.shoes = selS[0]; combos.push({ p, s: scoreOutfit(p, ctx).total }); });
+  combos.sort((a, b) => b.s - a.s);
+  const days = []; const usedTop = new Map();
+  for (let d = 1; d <= f.days && combos.length; d++) {
+    const c = combos.find(c => !usedTop.has((c.p.top || c.p.dress).id)) || combos[(d - 1) % combos.length];
+    usedTop.set((c.p.top || c.p.dress).id, 1); if (usedTop.size >= selT.length + selD.length) usedTop.clear();
+    days.push({ day: d, itemIds: Object.values(c.p).map(i => i.id), title: '', note: '' });
+  }
+  return { items: set.map(i => i.id), days, climate: f.temp != null ? `Planificado para unos ${f.temp} °C${f.rain ? ' con posibilidad de lluvia' : ''}.` : 'Sin temperatura indicada: he asumido unos 20 °C.', tips: ['Las prendas elegidas combinan entre sí: con pocas piezas tienes muchos looks.', f.rain ? 'Mete un paraguas plegable.' : 'Deja hueco para alguna compra.'] };
+}
+async function packRun() {
+  const f = S.sheet.form; f.dest = ($('#pk-dest').value || '').trim(); f.days = +$('#pk-days').value; const t = $('#pk-temp').value; f.temp = t === '' ? null : +t; f.rain = $('#pk-rain').checked;
+  if (!activeItems().length) { toast('Añade prendas primero'); return; }
+  S.packBusy = true; refreshSheet();
+  let r = null;
+  if (AI.available()) {
+    try {
+      const v = await AI.json(`Eres un estilista experto en maletas cápsula. Prepara la maleta para este viaje usando SOLO prendas del armario.
+VIAJE: destino ${f.dest || 'sin especificar'}, ${f.days} días, mes de ${new Date().toLocaleDateString('es-ES', { month: 'long' })}, planes: ${f.plans.join(', ') || 'variados'}. ${f.temp != null ? `Temperatura prevista: ${f.temp} °C.` : 'Estima el clima típico del destino en estas fechas (indica que es una estimación).'} ${f.rain ? 'Puede llover.' : ''}
+ARMARIO: ${JSON.stringify(compactWardrobe(activeItems()))}
+Criterios: mínimo de prendas que combinen todas entre sí (paleta coherente), un look distinto por día, adecuado al clima y a los planes.
+Responde SOLO JSON: {"climate":"1 frase sobre el clima considerado","items":["ids a llevar"],"days":[{"day":1,"title":"plan o nombre del look","itemIds":["ids"],"note":"detalle breve"}],"tips":["2-3 consejos breves"]}`, { tier: 'default', timeout: 120000 });
+      const ok = id => !!getDoc(String(id));
+      r = { climate: String(v.climate || ''), items: [...new Set((v.items || []).map(String).filter(ok))], days: (v.days || []).map((d, k) => ({ day: +d.day || k + 1, title: String(d.title || ''), itemIds: (d.itemIds || []).map(String).filter(ok), note: String(d.note || '') })).filter(d => d.itemIds.length), tips: (v.tips || []).map(String).slice(0, 3) };
+      r.days.forEach(d => d.itemIds.forEach(id => { if (!r.items.includes(id)) r.items.push(id); }));
+      if (!r.items.length) r = null;
+    } catch (e) { aiError(e); r = null; }
+  }
+  if (!r) r = localPack(f);
+  S.pack = r; S.packBusy = false; refreshSheet();
+}
+
+/* ---------- Event wiring ---------- */
+const A = {
+  tab: el => go(el.dataset.tab),
+  settings: () => openSheet('settings'),
+  close: () => closeSheet(),
+  add: () => $('#filein').click(),
+  weather: () => { S.wxMsg = ''; openSheet('weather', { draft: { ...S.weather } }); },
+  occ: el => { S.occasion = el.dataset.id; render(); },
+  mood: el => { S.mood = S.mood === el.dataset.id ? null : el.dataset.id; render(); },
+  'clear-anchor': () => { S.anchor = null; render(); },
+  generate: () => generate(),
+  dislike: async el => {
+    const i = +el.dataset.i; const o = S.results[i]; if (!o) return;
+    const card = $('#look-' + CSS.escape(o.id)); if (card) card.classList.add('out');
+    await addFeedback('dislikes', o.itemIds); await sleep(250);
+    S.results.splice(i, 1); render(); toast('Anotado: no volveré a proponerte esta combinación');
+  },
+  'save-look': async el => { const o = S.results[+el.dataset.i]; if (!o || o.saved) return; o.saved = true; render(); await saveLook(o); toast('Look guardado en «Looks»'); },
+  wear: async el => { const o = S.results[+el.dataset.i]; if (!o || o.worn) return; o.worn = true; render(); await wearIds(o.itemIds, o.title); toast('¡Registrado en tu diario! Disfruta el look'); },
+  swap: el => openSheet('swap', { i: +el.dataset.i, itemId: el.dataset.item }),
+  'swap-pick': el => {
+    const o = S.results[S.sheet.i]; if (!o) return; const id = el.dataset.id; const old = S.sheet.itemId;
+    o.itemIds = o.itemIds.map(x => x === old ? id : x); const its = o.itemIds.map(getDoc).filter(Boolean);
+    const sc = scoreOutfit(partsOf(its), ctxNow()); o.score = Math.round(sc.total); o.saved = false; o.worn = false;
+    if (S.source !== 'ai' || o._edited) { o.why = localWhy(partsOf(its), sc, ctxNow()); }
+    o._edited = true; closeSheet(); render();
+  },
+  'swap-remove': () => { const o = S.results[S.sheet.i]; if (!o) return; o.itemIds = o.itemIds.filter(x => x !== S.sheet.itemId); const sc = scoreOutfit(partsOf(o.itemIds.map(getDoc).filter(Boolean)), ctxNow()); o.score = Math.round(sc.total); closeSheet(); render(); },
+  cat: el => { S.cat = el.dataset.id; render(); },
+  color: el => { S.color = S.color === el.dataset.id ? null : el.dataset.id; render(); },
+  item: el => openItem(el.dataset.id),
+  'f-cat': el => { S.edit.category = el.dataset.id; touch('category'); refreshSheet(); },
+  'f-style': el => { const s = el.dataset.id; const st = S.edit.styles || []; S.edit.styles = st.includes(s) ? st.filter(x => x !== s) : [...st, s]; touch('styles'); el.classList.toggle('on'); },
+  'f-toggle': el => { const k = el.dataset.id; S.edit[k] = !S.edit[k]; el.classList.toggle('on', S.edit[k]); },
+  'color-del': el => { const k = +el.dataset.k; S.edit.colors = S.edit.colors.filter((_, j) => j !== k); touch('colors'); refreshSheet(); },
+  reanalyze: async () => {
+    const e = S.edit; if (!e) return; const id = e.id; S.analyzing.add(id); refreshSheet(); render();
+    try { const r = await analyzeBlob(await itemBlob(e), e.colors); if (S.edit && S.edit.id === id) { S.edit = { ...S.edit, ...r, needsReview: false, _touched: [] }; } const cur = getDoc(id); if (cur) await save({ ...clone(cur), ...r, needsReview: false }); toast('Prenda analizada'); }
+    catch (err) { aiError(err); }
+    S.analyzing.delete(id); refreshSheet(); render();
+  },
+  'item-save': async () => { const doc = clone(S.edit); doc.name = (doc.name || '').trim() || 'Prenda'; doc.needsReview = false; doc.updatedAt = Date.now(); closeSheet(); await save(doc); render(); toast('Prenda guardada'); },
+  'item-del': async () => {
+    const e = S.edit; if (!e) return; if (!await confirmBox(`¿Eliminar «${e.name}» de tu armario?`)) return;
+    const it = getDoc(e.id); closeSheet(); await Store.del(e.id); if (it) Store.deleteImage(it); if (S.anchor === e.id) S.anchor = null;
+    S.results = S.results.filter(o => !o.itemIds.includes(e.id)); render(); toast('Prenda eliminada');
+  },
+  anchor: async () => { const id = S.edit.id; if (S.edit._touched && S.edit._touched.length) { const d = clone(S.edit); d.needsReview = false; await save(d); } closeSheet(); S.anchor = id; go('hoy'); render(); generate(); },
+  rescue: el => { S.anchor = el.dataset.id; go('hoy'); generate(); },
+  'looks-tab': el => { S.looksTab = el.dataset.id; render(); },
+  look: el => openSheet('look', { id: el.dataset.id }),
+  'look-del': async () => { const id = S.sheet.id; if (!await confirmBox('¿Eliminar este look guardado?')) return; closeSheet(); await Store.del(id); render(); toast('Look eliminado'); },
+  'look-wear': async () => { const o = getDoc(S.sheet.id); closeSheet(); if (!o) return; await wearIds(o.itemIds, o.title); render(); toast('¡Registrado en tu diario!'); },
+  shop: () => shop(),
+  pack: () => { openSheet('pack', { form: S.sheet && S.sheet.form || { dest: '', days: 4, temp: null, rain: false, plans: ['ciudad'] } }); },
+  'pk-plan': el => { const f = S.sheet.form; const p = el.dataset.id; f.plans = f.plans.includes(p) ? f.plans.filter(x => x !== p) : [...f.plans, p]; el.classList.toggle('on'); },
+  'pack-run': () => packRun(),
+  'wx-cond': el => { S.sheet.draft.cond = el.dataset.id; $$('[data-act="wx-cond"]').forEach(b => b.classList.toggle('on', b === el)); },
+  'wx-save': async () => {
+    const w = { ...S.sheet.draft, src: 'manual', city: ($('#wx-city').value || '').trim(), tmin: null, tmax: null }; w.feels = WX.feels(w); S.weather = w;
+    const st = clone(settings()); st.wx = w; st.manual = true; delete st.loc; closeSheet(); render(); await save(st); toast('Tiempo actualizado');
+  },
+  'wx-geo': async () => {
+    S.wxBusy = true; S.wxMsg = ''; refreshSheet();
+    try { const pos = await WX.geolocate(); const live = await WX.live(pos.lat, pos.lon); await useLive(live, { ...pos, city: await reverseCity(pos.lat, pos.lon), auto: true }); }
+    catch (e) { S.wxMsg = e && e.code === 'geo' ? 'No he podido obtener tu ubicación. Escribe tu ciudad o ajusta el tiempo a mano.' : 'No he podido conectar con el servicio del tiempo desde aquí. Ajústalo a mano abajo.'; S.wxBusy = false; refreshSheet(); }
+  },
+  'wx-search': async () => {
+    const name = ($('#wx-city').value || '').trim(); if (!name) return; S.sheet.draft.city = name; S.wxBusy = true; S.wxMsg = ''; refreshSheet();
+    try { const g = await WX.geocode(name); const live = await WX.live(g.lat, g.lon); await useLive(live, g); }
+    catch (e) { S.wxMsg = e && e.code === 'notfound' ? 'No encuentro esa ciudad.' : `No he podido conectar con el servicio del tiempo desde aquí. He guardado «${name}»; ajusta los valores a mano y pulsa «Usar este tiempo».`; S.wxBusy = false; refreshSheet(); }
+  },
+  'key-save': () => { const k = ($('#api-key').value || '').trim(); lsSet('atelier_api_key', k || null); toast(k ? 'Clave guardada en este dispositivo' : 'Clave eliminada'); refreshSheet(); render(); },
+  export: async () => {
+    const data = JSON.stringify({ app: 'atelier', v: 1, at: Date.now(), docs: [...S.docs.values()] });
+    try { await navigator.clipboard.writeText(data); toast(`Copia copiada (${Math.round(data.length / 1024)} KB). Pégala en Notas o Archivos`); }
+    catch { const ta = $('#import-txt'); if (ta) { ta.value = data; ta.select(); } toast('Copia el texto del recuadro'); }
+  },
+  import: async () => {
+    let d; try { d = JSON.parse($('#import-txt').value); } catch { toast('El texto no es una copia válida'); return; }
+    if (!d || d.app !== 'atelier' || !Array.isArray(d.docs)) { toast('El texto no es una copia válida'); return; }
+    if (!await confirmBox(`¿Importar ${d.docs.filter(x => x.type === 'item').length} prendas y sus looks? Se añadirán a lo que ya tienes.`, 'Importar')) return;
+    closeSheet(); toast('Importando…');
+    for (const doc of d.docs) { if (doc && doc.id && doc.type) { try { await save(doc); } catch { break; } } }
+    render(); toast('Copia importada');
+  },
+  wipe: async () => {
+    if (!await confirmBox('¿Borrar TODAS tus prendas, looks y diario? No se puede deshacer.', 'Borrar todo')) return;
+    closeSheet(); const all = [...S.docs.values()];
+    for (const d of all) { try { await Store.del(d.id); if (d.type === 'item') Store.deleteImage(d); } catch { } }
+    S.results = []; S.anchor = null; S.shop = null; render(); toast('Armario vacío');
+  },
+};
+async function useLive(live, loc) {
+  S.weather = { ...live, city: loc.city }; S.wxBusy = false; S.wxMsg = ''; _wxT = Date.now();
+  const st = clone(settings()); st.loc = { lat: loc.lat, lon: loc.lon, city: loc.city, auto: !!loc.auto }; st.wx = S.weather; st.manual = false;
+  closeSheet(); render(); await save(st); toast(loc.auto ? 'El tiempo se actualizará solo con tu ubicación' : 'Tiempo en directo activado');
+}
+async function reverseCity(lat, lon) {
+  try { const j = await (await fetchT(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=es`, 5000)).json(); return j.city || j.locality || j.principalSubdivision || 'Tu ubicación'; }
+  catch { return 'Tu ubicación'; }
+}
+let _wxT = 0, _wxRunning = false;
+async function autoWeather(force) {
+  if (_wxRunning) return; const st = settings();
+  if (st.manual) return;
+  if (!force && Date.now() - _wxT < 20 * 60000) return;
+  _wxRunning = true;
+  try {
+    let loc = st.loc;
+    if (!S.inClaude && (!loc || loc.auto)) { try { const pos = await WX.geolocate(); const same = loc && Math.abs(loc.lat - pos.lat) < 0.03 && Math.abs(loc.lon - pos.lon) < 0.03; loc = { ...pos, city: same ? loc.city : await reverseCity(pos.lat, pos.lon), auto: true }; } catch { } }
+    if (!loc) return;
+    const live = await WX.live(loc.lat, loc.lon); _wxT = Date.now();
+    S.weather = { ...live, city: loc.city }; render(); if (S.sheet && S.sheet.kind === 'item') { } 
+    const s2 = clone(settings()); s2.loc = loc; s2.wx = S.weather; await save(s2);
+  } catch { if (S.weather.src === 'live' && Date.now() - (S.weather.at || 0) > 3 * 3600000) { S.weather = { ...S.weather, src: 'manual' }; render(); } }
+  finally { _wxRunning = false; }
+}
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const f = A[el.dataset.act]; if (!f) return; e.preventDefault(); f(el, e);
+});
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id === 'q') { S.q = t.value; const g = $('#grid-wrap'); if (g) g.innerHTML = gridHTML(); return; }
+  if (t.id === 'pk-days') { $('#pv-days').textContent = t.value; return; }
+  if (S.sheet && S.sheet.kind === 'item' && S.edit) {
+    if (t.dataset.f) {
+      const f = t.dataset.f; let v;
+      if (t.type === 'checkbox') v = t.checked; else if (t.type === 'range') v = +t.value; else if (f === 'price') v = t.value === '' ? null : Math.max(0, +t.value); else v = t.value;
+      S.edit[f] = v; touch(f);
+      if (f === 'warmth') $('#v-warmth').textContent = WARM_L[v - 1];
+      if (f === 'formality') $('#v-formality').textContent = FORM_L[v - 1];
+    }
+    if (t.dataset.color != null && t.dataset.color !== 'new') { const k = +t.dataset.color; const sw = $('#sw-' + k); if (sw) sw.style.background = t.value; const nm = $('#swn-' + k); if (nm) nm.textContent = colorName(t.value); }
+  }
+  if (S.sheet && S.sheet.kind === 'weather' && t.dataset.w) {
+    const k = t.dataset.w; const v = t.type === 'checkbox' ? t.checked : +t.value; S.sheet.draft[k] = v;
+    const lab = $('#wv-' + k); if (lab) lab.textContent = k === 'temp' ? v + '°' : k === 'wind' ? v + ' km/h' : k === 'uv' ? v : v + '%';
+  }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'filein') { const fs = [...t.files]; t.value = ''; onFiles(fs); return; }
+  if (S.sheet && S.sheet.kind === 'item' && S.edit && t.dataset.color != null) {
+    const cols = [...(S.edit.colors || [])]; if (t.dataset.color === 'new') cols.push(t.value.toLowerCase()); else cols[+t.dataset.color] = t.value.toLowerCase();
+    S.edit.colors = cols.slice(0, 3); touch('colors'); refreshSheet();
+  }
+});
+window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (['hoy', 'armario', 'looks', 'analisis'].includes(h) && h !== S.view) { S.view = h; render(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.sheet) closeSheet(); });
+
+function makeIcon() {
+  try {
+    const c = document.createElement('canvas'); c.width = c.height = 180; const x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, 180, 180); g.addColorStop(0, '#CF6A40'); g.addColorStop(1, '#8E3A1E'); x.fillStyle = g; x.fillRect(0, 0, 180, 180);
+    x.strokeStyle = '#FFF4EA'; x.lineWidth = 8; x.lineCap = 'round'; x.lineJoin = 'round';
+    x.beginPath(); x.arc(90, 56, 14, Math.PI, Math.PI * 2.5); x.lineTo(90, 80); x.lineTo(36, 116); x.quadraticCurveTo(26, 126, 40, 128); x.lineTo(140, 128); x.quadraticCurveTo(154, 126, 144, 116); x.lineTo(90, 80); x.stroke();
+    $('link[rel=apple-touch-icon]').href = c.toDataURL('image/png');
+  } catch { }
+}
+
+/* ---------- Boot ---------- */
+let _afterLoad = false;
+async function afterLoad() {
+  if (_afterLoad) return; _afterLoad = true;
+  const st = settings();
+  if (st.wx) S.weather = { ...defaultWx(), ...st.wx, isDay: (() => { const h = new Date().getHours(); return h >= 7 && h < 19; })() };
+  render();
+  autoWeather(true);
+  setInterval(() => autoWeather(), 30 * 60000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') autoWeather(); });
+}
+async function boot() {
+  renderTabs();
+  const h = location.hash.slice(1); if (['hoy', 'armario', 'looks', 'analisis'].includes(h)) S.view = h;
+  render();
+  S.inClaude = !!(await claudeReady());
+  if (S.inClaude) makeIcon(); else { try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch { } }
+  await Promise.all([Store.init(), AI.init()]);
+  let fellBack = false;
+  const onDocs = async (docs, err) => {
+    if (docs) { S.docs = new Map(docs.map(d => [d.id, d])); const first = !S.loaded; S.loaded = true; render(); if (first) afterLoad(); return; }
+    if (err === 'timeout') { if (!S.loaded) toast('Conectando con tu armario…'); return; }
+    if (!fellBack && !S.loaded) { fellBack = true; toast('No se pudo abrir tu armario en la nube; uso este dispositivo'); await Store.openIdb(); Store.subscribe(onDocs); }
+  };
+  Store.subscribe(onDocs);
+  render();
+}
+boot();
+</script>
+</body>
+</html>
