@@ -33,7 +33,7 @@
   --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.25);
 }}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+html,body{overflow-x:hidden;margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 body{min-height:100vh;min-height:100dvh;overscroll-behavior-y:none}
 body.locked{overflow:hidden}
 button{font:inherit;color:inherit;cursor:pointer}
@@ -150,7 +150,7 @@ h3{font-family:var(--display);font-weight:500;font-size:21px;margin:0;letter-spa
 .btn.soft{background:var(--surface-2);border-color:transparent;flex:1}
 .btn.ghost{background:transparent;flex:none;width:50px;padding:13px 0}
 .btn.danger{color:var(--danger);background:transparent}
-.btn.full{width:100%;margin-top:10px}
+.btn.full{width:100%;margin-top:10px;white-space:normal;text-align:center}
 .btn.done{background:var(--ok);border-color:var(--ok);color:#fff}
 .btn[disabled]{opacity:.5}
 
@@ -1333,6 +1333,7 @@ function lookCard(o, i, mode = 'result') {
   return `<article class="card look" id="look-${esc(o.id)}">
     <div class="stage-wrap">${stage}
       ${mode === 'result' ? `<div class="stage-tools"><button class="pill-btn" data-act="look-view" data-i="${i}">${view === 'grid' ? ic('target') + ' Monigote' : ic('hanger') + ' Prendas'}</button><button class="pill-btn" data-act="add-layer" data-t="r${i}">${ic('plus')} Capa</button></div>` : ''}</div>
+    ${view !== 'grid' && its.some(x => !x.cut) && Vision.supported() ? `<button class="btn soft full" style="margin-top:10px" data-act="vis-all">${ic('target')} Quitar el fondo a las prendas para verlas mejor en el monigote</button>` : ''}
     ${mode === 'result' && view !== 'grid' ? layerList(o.itemIds, 'r' + i) : ''}
     <div class="look-head"><div><h3>${esc(o.title || hm.type)}</h3><div class="palette">${its.map(x => `<span style="background:${esc((x.colors || [])[0] || '#ccc')}"></span>`).join('')}<em>${esc(hm.type)}</em></div></div>${ring(o.score ?? hm.score)}</div>
     ${o.why ? `<p class="why">${esc(o.why)}</p>` : ''}
