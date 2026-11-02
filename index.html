@@ -374,6 +374,12 @@ img.cut{object-fit:contain!important;padding:7%;filter:drop-shadow(0 4px 8px rgb
 .pick-it span{display:block;font-size:11.5px;font-weight:700;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
 .pick-it.on img{box-shadow:0 0 0 3px var(--accent)}
 .pick-it.on span{color:var(--accent)}
+.mq.adjusting .mq-p{opacity:.55}
+.mq.adjusting .mq-p.sel{opacity:1;touch-action:none;outline:2px dashed var(--accent);outline-offset:2px;border-radius:6px;cursor:move}
+.adj-panel{margin:12px 4px 0;padding:12px 14px 14px;border-radius:18px;background:var(--surface-2)}
+.adj-panel .fl{margin-top:10px}
+.rt-wrap{border-radius:18px;overflow:hidden;background:repeating-conic-gradient(#d9d4cc 0 25%,#f4f1ec 0 50%) 0 0/22px 22px;display:flex;justify-content:center}
+.rt-canvas{display:block;max-width:100%;max-height:56vh;touch-action:none;cursor:crosshair}
 #filein,#fitsin{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 </style>
 </head>
@@ -439,6 +445,8 @@ const IC = {
   copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
   phone: '<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',
   cloudsync: '<path d="M7 18h10a4 4 0 0 0 .6-8A5.5 5.5 0 0 0 7 9.5 4.3 4.3 0 0 0 7 18z"/>',
+  resize: '<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/>',
+  eraser: '<path d="M7 20h13M5.5 13.5l8-8a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L11 18H7.5l-2-2a1.8 1.8 0 0 1 0-2.5z"/><path d="M9.5 9.5l5 5"/>',
   download: '<path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/>',
   calendar: '<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/>',
 };
@@ -773,14 +781,15 @@ function hasAlpha(img) {
   const c = drawTo(img, 200, true), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let t = 0;
   for (let i = 3; i < d.length; i += 4) if (d[i] < 30) t++; return t / (d.length / 4) > 0.05;
 }
-function trimAlpha(c) {
+function trimAlpha(c, force = false) {
   const w = c.width, h = c.height, d = c.getContext('2d').getImageData(0, 0, w, h).data;
   let x0 = w, y0 = h, x1 = -1, y1 = -1, n = 0;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > 40) { n++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-  if (x1 < 0 || n < w * h * 0.002 || n > w * h * 0.985) return null;
-  const bw = x1 - x0 + 1, bh = y1 - y0 + 1, side = Math.round(Math.max(bw, bh) * 1.12);
-  const o = document.createElement('canvas'); o.width = o.height = side;
-  o.getContext('2d').drawImage(c, x0, y0, bw, bh, (side - bw) / 2, (side - bh) / 2, bw, bh);
+  if (x1 < 0 || n < w * h * 0.002) return null;
+  if (n > w * h * 0.985) return force ? c : null;
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1, pad = Math.round(Math.max(bw, bh) * 0.03);
+  const o = document.createElement('canvas'); o.width = bw + 2 * pad; o.height = bh + 2 * pad;
+  o.getContext('2d').drawImage(c, x0, y0, bw, bh, pad, pad, bw, bh);
   return o;
 }
 function visionStatus(msg) { const el = $('#vstat'); if (!el) return; if (msg) { el.textContent = msg; el.classList.add('on'); } else el.classList.remove('on'); }
@@ -801,7 +810,9 @@ const Vision = {
           if (t > 3e6) visionStatus(`Descargando la IA de recorte (solo la primera vez)… ${Math.min(99, Math.round(l / t * 100))}%`);
         }
       };
-      this.rm = await T.AutoModel.from_pretrained('briaai/RMBG-1.4', { config: { model_type: 'custom' }, dtype: 'q8', progress_callback: cb });
+      let gpu = false; try { gpu = !!(navigator.gpu && await navigator.gpu.requestAdapter()); } catch { }
+      if (gpu) { try { this.rm = await T.AutoModel.from_pretrained('briaai/RMBG-1.4', { config: { model_type: 'custom' }, device: 'webgpu', dtype: 'fp16', progress_callback: cb }); this.dev = 'webgpu'; } catch (e) { console.warn('webgpu', e); this.rm = null; } }
+      if (!this.rm) { this.rm = await T.AutoModel.from_pretrained('briaai/RMBG-1.4', { config: { model_type: 'custom' }, dtype: 'q8', progress_callback: cb }); this.dev = 'wasm'; }
       this.rp = await T.AutoProcessor.from_pretrained('briaai/RMBG-1.4', { config: { do_normalize: true, do_pad: false, do_rescale: true, do_resize: true, image_mean: [0.5, 0.5, 0.5], feature_extractor_type: 'ImageFeatureExtractor', image_std: [1, 1, 1], resample: 2, rescale_factor: 0.00392156862745098, size: { width: 1024, height: 1024 } } });
       this.clf = await T.pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32', { dtype: 'q8', progress_callback: cb });
       this.ready = true; visionStatus(null); setTimeout(() => visionStatus(null), 300);
@@ -810,16 +821,42 @@ const Vision = {
     return this._p;
   },
   async rawFrom(canvas) { const T = this.T; if (T.RawImage.fromCanvas) return T.RawImage.fromCanvas(canvas); return T.RawImage.fromURL(canvas.toDataURL('image/png')); },
-  async removeBg(src) {
-    await this.load(); const T = this.T;
-    const base = drawTo(src, 2048);
+  /* run the model once and return the cut-out canvas (alpha applied), same size as `base` */
+  async maskOnce(base) {
     const { pixel_values } = await this.rp(await this.rawFrom(base));
-    const { output } = await this.rm({ input: pixel_values });
-    const mask = await T.RawImage.fromTensor(output[0].mul(255).to('uint8')).resize(base.width, base.height);
-    const ctx = base.getContext('2d'); const id = ctx.getImageData(0, 0, base.width, base.height); const md = mask.data, ch = mask.channels || 1;
-    for (let i = 0; i < base.width * base.height; i++) { const v = md[i * ch]; id.data[i * 4 + 3] = v < 70 ? 0 : v > 200 ? 255 : Math.round((v - 70) * 255 / 130); }
-    ctx.putImageData(id, 0, 0);
-    return trimAlpha(keepMain(base));
+    const out = await this.rm({ input: pixel_values }); const t = out.output || Object.values(out)[0];
+    const dims = t.dims, H = dims[dims.length - 2], W = dims[dims.length - 1]; let f = t.data;
+    if (!(f instanceof Float32Array)) {
+      if (typeof Float16Array !== 'undefined' && f instanceof Float16Array) f = Float32Array.from(f);
+      else if (f instanceof Uint16Array) { const g = new Float32Array(f.length); for (let i = 0; i < f.length; i++) { const h = f[i], e = (h >> 10) & 31, m = h & 1023, sg = h >> 15 ? -1 : 1; g[i] = e === 0 ? sg * m * 5.96e-8 : e === 31 ? 0 : sg * Math.pow(2, e - 15) * (1 + m / 1024); } f = g; }
+      else f = Float32Array.from(f);
+    }
+    let mn = 1e9, mx = -1e9; const n = W * H, off = f.length - n; for (let i = 0; i < n; i++) { const v = f[off + i]; if (v < mn) mn = v; if (v > mx) mx = v; }
+    const rng = mx - mn > 0.05 ? mx - mn : 1, b0 = mx - mn > 0.05 ? mn : 0;
+    const mc = document.createElement('canvas'); mc.width = W; mc.height = H; const mctx = mc.getContext('2d'); const mid = mctx.createImageData(W, H);
+    for (let i = 0; i < n; i++) { const v = clamp(Math.round((f[off + i] - b0) / rng * 255), 0, 255); mid.data[i * 4] = mid.data[i * 4 + 1] = mid.data[i * 4 + 2] = v; mid.data[i * 4 + 3] = 255; }
+    mctx.putImageData(mid, 0, 0);
+    const sc = document.createElement('canvas'); sc.width = base.width; sc.height = base.height; const sctx = sc.getContext('2d', { willReadFrequently: true }); sctx.imageSmoothingQuality = 'high'; sctx.drawImage(mc, 0, 0, base.width, base.height);
+    const md = sctx.getImageData(0, 0, base.width, base.height).data;
+    const outc = document.createElement('canvas'); outc.width = base.width; outc.height = base.height; const octx = outc.getContext('2d'); octx.drawImage(base, 0, 0);
+    const id = octx.getImageData(0, 0, base.width, base.height);
+    for (let i = 0; i < base.width * base.height; i++) { const v = md[i * 4]; id.data[i * 4 + 3] = v < 60 ? 0 : v > 205 ? 255 : Math.round((v - 60) * 255 / 145); }
+    octx.putImageData(id, 0, 0); return outc;
+  },
+  async removeBg(src) {
+    await this.load();
+    const base = drawTo(src, 2048);
+    let cut = keepMain(await this.maskOnce(base));
+    // second pass: zoom into the garment so the model sees it big (much cleaner edges, no app UI around)
+    const d = cut.getContext('2d').getImageData(0, 0, cut.width, cut.height).data; let x0 = cut.width, y0 = cut.height, x1 = -1, y1 = -1;
+    for (let y = 0; y < cut.height; y += 2) for (let x = 0; x < cut.width; x += 2) if (d[(y * cut.width + x) * 4 + 3] > 128) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 > x0 && (x1 - x0) * (y1 - y0) < base.width * base.height * 0.5) {
+      const bw = x1 - x0, bh = y1 - y0, m = Math.max(bw, bh) * 0.1;
+      const cx0 = Math.max(0, x0 - m), cy0 = Math.max(0, y0 - m), cw = Math.min(base.width - cx0, bw + 2 * m), ch = Math.min(base.height - cy0, bh + 2 * m);
+      const crop = document.createElement('canvas'); crop.width = Math.round(cw); crop.height = Math.round(ch); crop.getContext('2d').drawImage(base, cx0, cy0, cw, ch, 0, 0, crop.width, crop.height);
+      try { const cut2 = keepMain(await this.maskOnce(crop)); if (trimAlpha(cut2)) cut = cut2; } catch (e) { console.warn('refine', e); }
+    }
+    return trimAlpha(cut);
   },
   async classify(canvas) {
     await this.load();
@@ -838,18 +875,18 @@ function fieldsFromClass(cls, hex) {
   if (d[3]) f.waterproof = true; return f;
 }
 async function cleanOldCutouts() {
-  const list = items().filter(i => i.cut && (i.clean || 0) < 3 && i.img && i.img.startsWith('data:'));
+  const list = items().filter(i => i.cut && (i.clean || 0) < 4 && i.img && i.img.startsWith('data:'));
   if (!list.length) return; let n = 0;
   for (const it of list) {
     try {
       const img = await loadImg(it.img); const cv = trimAlpha(keepMain(drawTo(img, 1024, true)));
       const cur = getDoc(it.id); if (!cur) continue;
-      if (cv) { const p = await processSource(cv, true); await save({ ...clone(cur), img: p.dataURL, colors: p.colors, ph: p.ph, clean: 3 }); n++; }
-      else await save({ ...clone(cur), clean: 3 });
+      if (cv) { const p = await processSource(cv, true); await save({ ...clone(cur), img: p.dataURL, colors: p.colors, ph: p.ph, clean: 4 }); n++; }
+      else await save({ ...clone(cur), clean: 4 });
     } catch { }
     await sleep(30);
   }
-  if (n) { render(); toast(`He limpiado el recorte de ${n} ${n === 1 ? 'prenda' : 'prendas'}`); }
+  if (n) { render(); toast(`He ajustado el recorte de ${n} ${n === 1 ? 'prenda' : 'prendas'}`); }
 }
 async function visionQueue(made, keepCategory = false) {
   if (!Vision.enabled() || !made.length) return false;
@@ -863,7 +900,7 @@ async function visionQueue(made, keepCategory = false) {
       const srcCanvas = cut || drawTo(img, 1000);
       const cls = await Vision.classify(srcCanvas);
       const upd = { ...clone(getDoc(m.it.id)) };
-      if (cut) { if (!upd.cut && upd.img && Store.mode !== 'cloud') upd.imgOrig = m.src && m.src.size < 2.5e6 ? await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = () => r(upd.img); fr.readAsDataURL(m.src); }) : upd.img; const p = await processSource(cut, true); const ref = await Store.saveImage(p); Object.assign(upd, ref, { colors: p.colors, ph: p.ph, cut: true, clean: 3 }); m.blob = p.aiBlob; }
+      if (cut) { if (!upd.cut && upd.img && Store.mode !== 'cloud') upd.imgOrig = m.src && m.src.size < 2.5e6 ? await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = () => r(upd.img); fr.readAsDataURL(m.src); }) : upd.img; const p = await processSource(cut, true); const ref = await Store.saveImage(p); Object.assign(upd, ref, { colors: p.colors, ph: p.ph, cut: true, clean: 4 }); m.blob = p.aiBlob; }
       const t = (S.edit && S.edit.id === upd.id && S.edit._touched) || [];
       if (cls) {
         const f = fieldsFromClass(cls, (upd.colors || [])[0]);
@@ -1034,7 +1071,7 @@ function layerAdvice(w) {
 const S = {
   docs: new Map(), view: 'hoy', loaded: false, cat: 'all', color: null, q: '', occasion: 'casual', mood: null, anchor: null,
   results: [], source: null, generating: false, looksTab: 'saved', analyzing: new Set(), edit: null, sheet: null,
-  weather: defaultWx(), wxMsg: '', wxBusy: false, shop: null, shopBusy: false, pack: null, packBusy: false, inClaude: false,
+  weather: defaultWx(), wxMsg: '', adjust: null, rtBrush: 28, rtUndo: [], wxBusy: false, shop: null, shopBusy: false, pack: null, packBusy: false, inClaude: false,
 };
 const items = () => [...S.docs.values()].filter(d => d.type === 'item').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 const activeItems = () => items().filter(i => !i.laundry);
@@ -1280,8 +1317,16 @@ const MQ_BOX = {
   bottom: [84, 240, 132, 220, 't'], dress: [64, 90, 172, 330, 't'], shoes: [76, 448, 148, 64, 'c'],
   hat: [104, 2, 92, 66, 'b'], glasses: [114, 36, 72, 30, 'c'], neck: [98, 78, 104, 76, 't'], belt: [94, 236, 112, 26, 'c'], side: [228, 214, 70, 112, 'c'],
 };
+function fitBox(b, fit) {
+  if (!fit) return b; const s = fit.s || 1, w = b[2] * s, h = b[3] * s, x = b[0] + b[2] / 2 - w / 2 + (fit.dx || 0);
+  const y = (b[4] === 'b' ? b[1] + b[3] - h : b[4] === 'c' ? b[1] + b[3] / 2 - h / 2 : b[1]) + (fit.dy || 0); return [x, y, w, h, b[4]];
+}
+const pct = (v, t) => (v / t * 100).toFixed(2) + '%';
+function boxStyle(b) { return `left:${pct(b[0], 300)};top:${pct(b[1], 520)};width:${pct(b[2], 300)};height:${pct(b[3], 520)}`; }
+function applyFitEl(el, fit) { const b = el.dataset.b.split(',').map((v, k) => k < 4 ? +v : v); const fb = fitBox(b, fit); el.style.left = pct(fb[0], 300); el.style.top = pct(fb[1], 520); el.style.width = pct(fb[2], 300); el.style.height = pct(fb[3], 520); }
 function accSlot(i) { const s = norm(i.sub); if (/gorra|gorro|sombrero|boina|cap/.test(s)) return 'hat'; if (/gafas/.test(s)) return 'glasses'; if (/bufanda|collar|panuelo|pañuelo|fular/.test(s)) return 'neck'; if (/cinturon|cinturón/.test(s)) return 'belt'; return 'side'; }
-function mannequin(ids, { act = '', i = null, cls = '' } = {}) {
+function mannequin(ids, { act = '', i = null, cls = '', adj = null } = {}) {
+  const adjusting = adj && S.adjust && S.adjust.key === adj; if (adjusting) { act = 'adj-sel'; cls += ' adjusting'; }
   const its = ids.map(getDoc).filter(Boolean);
   const layers = its.filter(x => x.category === 'top' || x.category === 'outer'); const nL = layers.length;
   const pieces = [];
@@ -1298,14 +1343,24 @@ function mannequin(ids, { act = '', i = null, cls = '' } = {}) {
     if (x.category === 'accessory') { const sl = accSlot(x); pieces.push({ x, b: MQ_BOX[sl], z: sl === 'belt' ? 9 : sl === 'side' ? 40 : 30 }); return; }
     pieces.push({ x, b: MQ_BOX[x.category] || MQ_BOX.side, z: x.category === 'shoes' ? 2 : x.category === 'bottom' ? 4 : 8 });
   });
-  const pct = (v, t) => (v / t * 100).toFixed(2) + '%';
-  return `<div class="mq ${cls}"><svg class="mq-body" viewBox="0 0 300 520" aria-hidden="true"><g fill="currentColor">
+  return `<div class="mq ${cls}" ${adjusting ? `data-adj="${adj}"` : ''}><svg class="mq-body" viewBox="0 0 300 520" aria-hidden="true"><g fill="currentColor">
       <circle cx="150" cy="44" r="27"/><rect x="139" y="66" width="22" height="22" rx="8"/>
       <path d="M96 92 Q150 80 204 92 Q226 98 230 122 L246 248 Q248 262 238 262 Q230 262 228 250 L212 150 L206 246 L94 246 L88 150 L72 250 Q70 262 62 262 Q52 262 54 248 L70 122 Q74 98 96 92 Z"/>
       <path d="M96 240 L204 240 L206 300 L196 470 Q195 482 182 482 Q170 482 169 470 L156 300 L144 300 L131 470 Q130 482 118 482 Q105 482 104 470 L94 300 Z"/>
       <ellipse cx="118" cy="492" rx="20" ry="9"/><ellipse cx="182" cy="492" rx="20" ry="9"/></g></svg>
-    ${pieces.map(({ x, b, z, open }) => `<button class="mq-p ${x.cut ? 'cut' : 'raw'} ${open && x.cut ? 'open' : ''} al-${b[4]}" style="left:${pct(b[0], 300)};top:${pct(b[1], 520)};width:${pct(b[2], 300)};height:${pct(b[3], 520)};z-index:${z}" ${act ? `data-act="${act}" data-i="${i ?? ''}" data-item="${esc(x.id)}"` : 'tabindex="-1"'} aria-label="${esc(x.name)}"><img src="${esc(imgSrc(x))}" alt="${esc(x.name)}" loading="lazy"></button>`).join('')}
+    ${pieces.map(({ x, b, z, open }) => `<button class="mq-p ${x.cut ? 'cut' : 'raw'} ${open && x.cut ? 'open' : ''} al-${b[4]} ${adjusting && S.adjust.itemId === x.id ? 'sel' : ''}" data-b="${b.map(v => typeof v === 'number' ? v.toFixed(1) : v).join(',')}" data-item="${esc(x.id)}" style="${boxStyle(fitBox(b, x.fit))};z-index:${z}" ${act ? `data-act="${act}" data-i="${i ?? ''}"` : 'tabindex="-1"'} aria-label="${esc(x.name)}"><img src="${esc(imgSrc(x))}" alt="${esc(x.name)}" loading="lazy"></button>`).join('')}
   </div>`;
+}
+function adjustPanel(key) {
+  if (!S.adjust || S.adjust.key !== key) return '';
+  const it = S.adjust.itemId && getDoc(S.adjust.itemId); const f = (it && it.fit) || { s: 1, dx: 0, dy: 0 };
+  return `<div class="adj-panel">${it ? `<div class="eyebrow">Ajustando · ${esc(it.name)}</div>
+    <label class="fl">Tamaño <b class="val" id="adj-sv">${Math.round((f.s || 1) * 100)}%</b><input type="range" min="40" max="250" value="${Math.round((f.s || 1) * 100)}" data-adj="s"></label>
+    <label class="fl">Subir / bajar<input type="range" min="-140" max="140" value="${Math.round(-(f.dy || 0))}" data-adj="dy"></label>
+    <label class="fl">Izquierda / derecha<input type="range" min="-100" max="100" value="${Math.round(f.dx || 0)}" data-adj="dx"></label>
+    <p class="hint" style="margin-top:8px">También puedes arrastrar la prenda con el dedo y pellizcar para agrandarla. El ajuste se guarda en la prenda para todos tus looks.</p>
+    <div class="look-actions"><button class="btn soft" data-act="adj-reset">${ic('refresh')} Restablecer</button><button class="btn primary" data-act="adj-done">${ic('check')} Listo</button></div>`
+    : `<p class="hint" style="margin:4px 0 10px">Toca una prenda del monigote para ajustar su tamaño y posición.</p><button class="btn primary full" data-act="adj-done">${ic('check')} Listo</button>`}</div>`;
 }
 function layerList(ids, target) {
   const lay = ids.map(getDoc).filter(x => x && (x.category === 'top' || x.category === 'outer'));
@@ -1329,10 +1384,12 @@ function lookCard(o, i, mode = 'result') {
   const eff = effWarmth(partsOf(its)), target = targetWarmth(w);
   const fit = Math.abs(eff - target) < .7 ? 'Abrigo ideal' : eff < target ? 'Algo fresco' : 'Algo abrigado';
   const view = o.view || 'mq';
-  const stage = view === 'grid' ? collage(its, mode === 'result' ? i : null) : mannequin(o.itemIds, mode === 'result' ? { act: 'swap', i } : {});
+  const stage = view === 'grid' ? collage(its, mode === 'result' ? i : null) : mannequin(o.itemIds, mode === 'result' ? { act: 'swap', i, adj: 'r' + i } : {});
+  const adjOn = S.adjust && S.adjust.key === 'r' + i && mode === 'result';
   return `<article class="card look" id="look-${esc(o.id)}">
     <div class="stage-wrap">${stage}
-      ${mode === 'result' ? `<div class="stage-tools"><button class="pill-btn" data-act="look-view" data-i="${i}">${view === 'grid' ? ic('target') + ' Monigote' : ic('hanger') + ' Prendas'}</button><button class="pill-btn" data-act="add-layer" data-t="r${i}">${ic('plus')} Capa</button></div>` : ''}</div>
+      ${mode === 'result' && !adjOn ? `<div class="stage-tools"><button class="pill-btn" data-act="look-view" data-i="${i}">${view === 'grid' ? ic('target') + ' Monigote' : ic('hanger') + ' Prendas'}</button><span style="display:flex;gap:6px">${view !== 'grid' ? `<button class="pill-btn" data-act="adj-start" data-t="r${i}">${ic('resize')} Ajustar</button>` : ''}<button class="pill-btn" data-act="add-layer" data-t="r${i}">${ic('plus')} Capa</button></span></div>` : ''}</div>
+    ${mode === 'result' ? adjustPanel('r' + i) : ''}
     ${view !== 'grid' && its.some(x => !x.cut) && Vision.supported() ? `<button class="btn soft full" style="margin-top:10px" data-act="vis-all">${ic('target')} Quitar el fondo a las prendas para verlas mejor en el monigote</button>` : ''}
     ${mode === 'result' && view !== 'grid' ? layerList(o.itemIds, 'r' + i) : ''}
     <div class="look-head"><div><h3>${esc(o.title || hm.type)}</h3><div class="palette">${its.map(x => `<span style="background:${esc((x.colors || [])[0] || '#ccc')}"></span>`).join('')}<em>${esc(hm.type)}</em></div></div>${ring(o.score ?? hm.score)}</div>
@@ -1490,7 +1547,7 @@ function refreshSheet() { if (!S.sheet) return; const el = $('#sheet'); const st
 function closeSheet() { S.sheet = null; S.edit = null; $('#sheet').classList.remove('open'); $('#backdrop').classList.remove('on'); document.body.classList.remove('locked'); }
 function sheetHTML() {
   const k = S.sheet.kind;
-  return k === 'studio' ? studioSheet() : k === 'layer' ? layerSheet() : k === 'fits' ? fitsSheet() : k === 'item' ? itemSheet() : k === 'weather' ? weatherSheet() : k === 'settings' ? settingsSheet() : k === 'swap' ? swapSheet() : k === 'look' ? lookSheet() : k === 'pack' ? packSheet() : '';
+  return k === 'retouch' ? retouchSheet() : k === 'studio' ? studioSheet() : k === 'layer' ? layerSheet() : k === 'fits' ? fitsSheet() : k === 'item' ? itemSheet() : k === 'weather' ? weatherSheet() : k === 'settings' ? settingsSheet() : k === 'swap' ? swapSheet() : k === 'look' ? lookSheet() : k === 'pack' ? packSheet() : '';
 }
 const shead = (title) => `<div class="sheet-head"><h2>${title}</h2><button class="icon-btn sm" data-act="close" aria-label="Cerrar">${ic('close')}</button></div>`;
 
@@ -1501,6 +1558,7 @@ function itemSheet() {
     <div class="ed-photo ${an ? 'scanning' : ''}"><img class="${e && e.cut ? 'cut' : ''}" src="${esc(imgSrc(e))}" alt="">${an ? `<div class="ai-scan"><span class="spin"></span> ${Vision.enabled() ? 'Quitando el fondo y detectando la prenda…' : 'La IA está analizando tu prenda…'}</div>` : ''}</div>
     ${AI.canSee() ? `<button class="btn soft full" data-act="reanalyze" ${an ? 'disabled' : ''}>${ic('sparkle')} ${e.needsReview ? 'Analizar con IA' : 'Volver a analizar con IA'}</button>` : (e.needsReview ? `<p class="note">Revisa la categoría y los datos: sin IA solo se detectan los colores automáticamente.</p>` : '')}
     ${Vision.supported() && !e.cut && !an ? `<button class="btn soft full" data-act="vis-one">${ic('target')} Quitar fondo y detectar tipo</button>` : ''}
+    ${!an ? `<button class="btn soft full" data-act="retouch">${ic('eraser')} ${e.cut ? 'Retocar recorte (borrar restos con el dedo)' : 'Borrar el fondo a mano'}</button>` : ''}
     ${e.cut && e.imgOrig && !an ? `<button class="btn full" data-act="uncut">${ic('refresh')} Deshacer recorte (usar la foto original)</button>` : ''}
     <label class="fl">Nombre<input type="text" data-f="name" value="${esc(e.name)}" maxlength="60"></label>
     <div class="fl">Categoría<div class="seg6">${CATS.map(c => `<button class="${e.category === c.id ? 'on' : ''}" data-act="f-cat" data-id="${c.id}">${c.label}</button>`).join('')}</div></div>
@@ -1568,7 +1626,7 @@ function settingsSheet() {
     <div class="card pad"><div style="display:flex;gap:10px;align-items:center">${ic('sparkle')}<h3>Inteligencia artificial</h3></div><p class="note">${aiTxt}</p>
     ${!AI.sample ? `<label class="fl">Clave de API de Anthropic <span class="opt">· opcional, se guarda solo en este dispositivo</span><input type="text" id="api-key" value="${esc(AI.key())}" placeholder="sk-ant-…" autocomplete="off" autocapitalize="off" spellcheck="false"></label><button class="btn soft full" data-act="key-save">Guardar clave</button>` : ''}</div>
     ${Vision.supported() ? `<div class="card pad" style="margin-top:12px"><div style="display:flex;gap:10px;align-items:center">${ic('target')}<h3>Recorte y detección</h3></div>
-      <p class="note">Al añadir una foto, <b>quito el fondo</b> para que solo se vea la prenda y <b>detecto qué es</b> (pantalón, gorra, zapatillas…). Funciona en tu iPhone: la primera vez descarga unos 130 MB y después va sin enviar tus fotos a ningún sitio.${Vision.failed ? ' <b>No se pudo cargar la última vez</b>: comprueba tu conexión.' : ''}</p>
+      <p class="note">Al añadir una foto, <b>quito el fondo</b> para que solo se vea la prenda y <b>detecto qué es</b> (pantalón, gorra, zapatillas…). Funciona en tu iPhone: la primera vez descarga unos 180 MB (mejor con wifi) y después va sin enviar tus fotos a ningún sitio.${Vision.failed ? ' <b>No se pudo cargar la última vez</b>: comprueba tu conexión.' : ''}</p>
       <label class="fl row-toggle"><span>Recortar y detectar automáticamente</span><input type="checkbox" class="tgl" id="vis-on" ${lsGet('atelier_vision') !== 'off' ? 'checked' : ''}></label>
       ${items().some(i => !i.cut) ? `<button class="btn soft full" data-act="vis-all">${ic('sparkle')} Recortar mis ${items().filter(i => !i.cut).length} prendas sin recortar</button>` : ''}</div>` : ''}
     <div class="card pad" style="margin-top:12px"><div style="display:flex;gap:10px;align-items:center">${ic('cloudsync')}<h3>Tus datos</h3></div><p class="note">${stTxt}</p>
@@ -1604,6 +1662,51 @@ function addToLook(o, it) {
   }
   o.itemIds = ids;
 }
+function retouchSheet() {
+  return shead('Retocar <em>recorte</em>') + `<p class="note" style="margin-top:0">Pasa el dedo por lo que sobra (flechas, botones, sombras, trozos de fondo) para borrarlo. «Limpiar restos» quita automáticamente lo que no está unido a la prenda.</p>
+    <div class="rt-wrap"><canvas id="rt-canvas" class="rt-canvas"></canvas></div>
+    <label class="fl">Tamaño del borrador <b class="val" id="rt-bv">${S.rtBrush}</b><input type="range" min="6" max="90" value="${S.rtBrush}" id="rt-brush"></label>
+    <div class="look-actions"><button class="btn soft" data-act="rt-undo">${ic('refresh')} Deshacer</button><button class="btn soft" data-act="rt-auto">${ic('sparkle')} Limpiar restos</button></div>
+    <button class="cta" data-act="rt-save">${ic('check')} Guardar recorte</button>
+    <button class="btn full" data-act="rt-cancel">Cancelar</button>`;
+}
+async function initRetouch() {
+  const e = S.edit; const cv = $('#rt-canvas'); if (!e || !cv) return;
+  const img = await loadImg(imgSrc(e)); const W0 = img.naturalWidth, H0 = img.naturalHeight, k = Math.min(1, 1000 / Math.max(W0, H0));
+  cv.width = Math.round(W0 * k); cv.height = Math.round(H0 * k); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+  S.rtUndo = [];
+}
+function rtPoint(cv, ev) { const r = cv.getBoundingClientRect(); return [(ev.clientX - r.left) * cv.width / r.width, (ev.clientY - r.top) * cv.height / r.height, cv.width / r.width]; }
+let RT = null, GX = null;
+document.addEventListener('pointerdown', ev => {
+  const el = ev.target.closest && ev.target.closest('.mq.adjusting .mq-p.sel'); if (!el) return; ev.preventDefault();
+  const it = getDoc(el.dataset.item); if (!it) return; const r = el.closest('.mq').getBoundingClientRect();
+  if (!GX || GX.el !== el) GX = { el, id: it.id, u: 300 / r.width, pts: new Map() };
+  GX.pts.set(ev.pointerId, [ev.clientX, ev.clientY]); GX.f0 = { s: 1, dx: 0, dy: 0, ...(it.fit || {}) }; GX.p0 = new Map(GX.pts); try { el.setPointerCapture(ev.pointerId); } catch { }
+});
+document.addEventListener('pointermove', ev => {
+  if (!GX || !GX.pts.has(ev.pointerId)) return; ev.preventDefault(); GX.pts.set(ev.pointerId, [ev.clientX, ev.clientY]);
+  const f = { ...GX.f0 }; const a = [...GX.pts.values()], b = [...GX.p0.values()];
+  if (a.length >= 2 && b.length >= 2) { const d1 = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]), d0 = Math.hypot(b[0][0] - b[1][0], b[0][1] - b[1][1]) || 1; f.s = clamp(GX.f0.s * d1 / d0, 0.3, 3); }
+  else { f.dx = GX.f0.dx + (a[0][0] - b[0][0]) * GX.u; f.dy = GX.f0.dy + (a[0][1] - b[0][1]) * GX.u; }
+  const it = getDoc(GX.id); S.docs.set(GX.id, { ...it, fit: f }); applyFitEl(GX.el, f); GX.moved = true;
+});
+['pointerup', 'pointercancel'].forEach(t => document.addEventListener(t, ev => {
+  if (!GX || !GX.pts.has(ev.pointerId)) return; GX.pts.delete(ev.pointerId);
+  if (GX.pts.size) { const it = getDoc(GX.id); GX.f0 = { s: 1, dx: 0, dy: 0, ...(it.fit || {}) }; GX.p0 = new Map(GX.pts); return; }
+  const it = getDoc(GX.id); const moved = GX.moved; GX = null; if (it && moved) { save(clone(it)); if (S.adjust) { S.adjust.key === 's' ? refreshSheet() : render(); } }
+}));
+document.addEventListener('pointerdown', ev => {
+  const cv = ev.target.closest && ev.target.closest('#rt-canvas'); if (!cv) return; ev.preventDefault();
+  const x = cv.getContext('2d'); S.rtUndo.push(x.getImageData(0, 0, cv.width, cv.height)); if (S.rtUndo.length > 12) S.rtUndo.shift();
+  const [px, py, k] = rtPoint(cv, ev); RT = { cv, x, last: [px, py], k, id: ev.pointerId }; try { cv.setPointerCapture(ev.pointerId); } catch { }
+  x.save(); x.globalCompositeOperation = 'destination-out'; x.beginPath(); x.arc(px, py, S.rtBrush * k / 2, 0, 7); x.fill(); x.restore();
+});
+document.addEventListener('pointermove', ev => {
+  if (!RT || ev.pointerId !== RT.id) return; ev.preventDefault(); const [px, py] = rtPoint(RT.cv, ev); const x = RT.x;
+  x.save(); x.globalCompositeOperation = 'destination-out'; x.lineCap = 'round'; x.lineJoin = 'round'; x.lineWidth = S.rtBrush * RT.k; x.beginPath(); x.moveTo(RT.last[0], RT.last[1]); x.lineTo(px, py); x.stroke(); x.restore(); RT.last = [px, py];
+});
+['pointerup', 'pointercancel'].forEach(t => document.addEventListener(t, ev => { if (RT && ev.pointerId === RT.id) RT = null; }));
 function layerSheet() {
   const o = lookFor(S.sheet.t); if (!o) return '';
   const groups = [['top', 'Partes de arriba (capa base o jersey/sudadera)'], ['outer', 'Chaquetas y abrigos'], ['accessory', 'Accesorios']];
@@ -1615,7 +1718,8 @@ function studioSheet() {
   const its = o.itemIds.map(getDoc).filter(Boolean); const hm = harmony(its.map(x => (x.colors || [])[0]));
   const list = activeItems().filter(x => x.category === cat);
   return shead('El <em>probador</em>') + `
-    <div class="stage-wrap">${mannequin(o.itemIds, { act: 'studio-tap' })}${its.length ? `<div class="stage-tools"><span class="pill-btn" style="pointer-events:none">${esc(hm.type)} · ${hm.score}</span><button class="pill-btn" data-act="studio-clear">${ic('trash')} Vaciar</button></div>` : ''}</div>
+    <div class="stage-wrap">${mannequin(o.itemIds, { act: 'studio-tap', adj: 's' })}${its.length && !(S.adjust && S.adjust.key === 's') ? `<div class="stage-tools"><span class="pill-btn" style="pointer-events:none">${esc(hm.type)} · ${hm.score}</span><span style="display:flex;gap:6px"><button class="pill-btn" data-act="adj-start" data-t="s">${ic('resize')} Ajustar</button><button class="pill-btn" data-act="studio-clear">${ic('trash')} Vaciar</button></span></div>` : ''}</div>
+    ${adjustPanel('s')}
     ${its.length ? '' : '<p class="hint" style="margin-top:10px">Elige prendas abajo para vestir al monigote. Toca una prenda del monigote para quitársela.</p>'}
     ${layerList(o.itemIds, 's')}
     <div class="chips" style="margin-top:14px">${CATS.map(c => `<button class="chip sm ${cat === c.id ? 'on' : ''}" data-act="studio-cat" data-id="${c.id}">${c.label}</button>`).join('')}</div>
@@ -1741,7 +1845,7 @@ const touch = f => { if (S.edit) { S.edit._touched = [...new Set([...(S.edit._to
 async function generate() {
   const ctx = ctxNow();
   if (!canGenerate(ctx)) { toast('Necesitas al menos una prenda de arriba y una de abajo, o un vestido'); return; }
-  S.generating = true; S.results = []; render();
+  S.generating = true; S.results = []; S.adjust = null; render();
   setTimeout(() => { const el = $('.looks-list'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
   let res = null, src = 'local';
   if (AI.available()) { try { res = await aiOutfits(ctx, 3); if (res.length) src = 'ai'; } catch (e) { aiError(e); res = null; } }
@@ -1860,6 +1964,21 @@ const A = {
     toast(`Recortando ${made.length} prendas…`); Vision.failed = false;
     await visionQueue(made.map(m => ({ ...m, it: { ...m.it } })));
   },
+  retouch: async () => { if (!S.edit) return; openSheet('retouch'); await initRetouch(); },
+  'rt-undo': () => { const cv = $('#rt-canvas'); const u = S.rtUndo.pop(); if (cv && u) cv.getContext('2d').putImageData(u, 0, 0); },
+  'rt-auto': () => { const cv = $('#rt-canvas'); if (!cv) return; const x = cv.getContext('2d'); S.rtUndo.push(x.getImageData(0, 0, cv.width, cv.height)); keepMain(cv); toast('Restos eliminados'); },
+  'rt-cancel': () => openSheet('item', { isNew: false }),
+  'rt-save': async () => {
+    const cv = $('#rt-canvas'); if (!cv || !S.edit) return; const t = trimAlpha(cv, true); if (!t) { toast('Has borrado toda la prenda'); return; }
+    const p = await processSource(t, true); const ref = await Store.saveImage(p); const id = S.edit.id;
+    const upd = { img: ref.img, imgId: ref.imgId, colors: S.edit._touched.includes('colors') ? S.edit.colors : p.colors, ph: p.ph, cut: true, clean: 4 };
+    S.edit = { ...S.edit, ...upd }; const cur = getDoc(id); if (cur) await save({ ...clone(cur), ...upd });
+    openSheet('item', { isNew: false }); render(); toast('Recorte guardado');
+  },
+  'adj-start': el => { S.adjust = { key: el.dataset.t, itemId: null }; el.dataset.t === 's' ? refreshSheet() : render(); },
+  'adj-sel': el => { if (S.adjust.itemId === el.dataset.item) return; S.adjust.itemId = el.dataset.item; S.adjust.key === 's' ? refreshSheet() : render(); },
+  'adj-done': () => { const k = S.adjust && S.adjust.key; S.adjust = null; k === 's' ? refreshSheet() : render(); },
+  'adj-reset': async () => { const it = getDoc(S.adjust.itemId); if (!it) return; const d = clone(it); delete d.fit; await save(d); S.adjust.key === 's' ? refreshSheet() : render(); },
   uncut: async () => {
     const e = S.edit; if (!e || !e.imgOrig) return;
     const img = await loadImg(e.imgOrig); const cols = extractColors(img);
@@ -1875,7 +1994,7 @@ const A = {
     const i = +el.dataset.i; const o = S.results[i]; if (!o) return;
     const card = $('#look-' + CSS.escape(o.id)); if (card) card.classList.add('out');
     await addFeedback('dislikes', o.itemIds); await sleep(250);
-    S.results.splice(i, 1); render(); toast('Anotado: no volveré a proponerte esta combinación');
+    S.results.splice(i, 1); S.adjust = null; render(); toast('Anotado: no volveré a proponerte esta combinación');
   },
   'save-look': async el => { const o = S.results[+el.dataset.i]; if (!o || o.saved) return; o.saved = true; render(); await saveLook(o); toast('Look guardado en «Looks»'); },
   wear: async el => { const o = S.results[+el.dataset.i]; if (!o || o.worn) return; o.worn = true; render(); await wearIds(o.itemIds, o.title); toast('¡Registrado en tu diario! Disfruta el look'); },
@@ -2003,6 +2122,12 @@ document.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'q') { S.q = t.value; const g = $('#grid-wrap'); if (g) g.innerHTML = gridHTML(); return; }
   if (t.id === 'pk-days') { $('#pv-days').textContent = t.value; return; }
+  if (t.id === 'rt-brush') { S.rtBrush = +t.value; $('#rt-bv').textContent = t.value; return; }
+  if (t.dataset.adj && S.adjust && S.adjust.itemId) {
+    const it = getDoc(S.adjust.itemId); if (!it) return; const f = { s: 1, dx: 0, dy: 0, ...(it.fit || {}) };
+    if (t.dataset.adj === 's') { f.s = +t.value / 100; const l = $('#adj-sv'); if (l) l.textContent = t.value + '%'; } else if (t.dataset.adj === 'dy') f.dy = -(+t.value); else f.dx = +t.value;
+    S.docs.set(it.id, { ...it, fit: f }); $$(`.mq.adjusting .mq-p[data-item="${CSS.escape(it.id)}"]`).forEach(el => applyFitEl(el, f)); return;
+  }
   if (S.sheet && S.sheet.kind === 'item' && S.edit) {
     if (t.dataset.f) {
       const f = t.dataset.f; let v;
@@ -2020,6 +2145,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const t = e.target;
+  if (t.dataset.adj && S.adjust && S.adjust.itemId) { const it = getDoc(S.adjust.itemId); if (it) save(clone(it)); return; }
   if (t.id === 'vis-on') { lsSet('atelier_vision', t.checked ? null : 'off'); if (t.checked) Vision.failed = false; toast(t.checked ? 'Recorte automático activado' : 'Recorte automático desactivado'); return; }
   if (t.id === 'filein') { const fs = [...t.files]; t.value = ''; onFiles(fs); return; }
   if (t.id === 'fitsin') { const fs = [...t.files]; t.value = ''; fitsScan(fs); return; }
