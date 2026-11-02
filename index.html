@@ -692,6 +692,39 @@ function colorAdj(name, g) {
   }).join(' ');
 }
 function garmentName(sub, g, hex) { return cap(sub) + ' ' + colorAdj(colorName(hex), g || 'm'); }
+/* keep only the main garment: drop app UI remnants, text and specks left around it */
+function keepMain(c) {
+  const w = c.width, h = c.height, ctx = c.getContext('2d'); const id = ctx.getImageData(0, 0, w, h), d = id.data;
+  const k = Math.min(1, 320 / Math.max(w, h)), sw = Math.max(1, Math.round(w * k)), sh = Math.max(1, Math.round(h * k)), N = sw * sh;
+  const m = new Uint8Array(N);
+  for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) { const X = Math.min(w - 1, Math.floor(x / k)), Y = Math.min(h - 1, Math.floor(y / k)); if (d[(Y * w + X) * 4 + 3] > 150) m[y * sw + x] = 1; }
+  const lab = new Int32Array(N), areas = [0], bb = [null], stack = new Int32Array(N); let nl = 0;
+  for (let p0 = 0; p0 < N; p0++) {
+    if (!m[p0] || lab[p0]) continue; nl++; let sp = 0, a = 0, x0 = sw, y0 = sh, x1 = 0, y1 = 0; stack[sp++] = p0; lab[p0] = nl;
+    while (sp) { const p = stack[--sp]; a++; const px = p % sw, py = (p - px) / sw; if (px < x0) x0 = px; if (px > x1) x1 = px; if (py < y0) y0 = py; if (py > y1) y1 = py;
+      if (px > 0 && m[p - 1] && !lab[p - 1]) { lab[p - 1] = nl; stack[sp++] = p - 1; }
+      if (px < sw - 1 && m[p + 1] && !lab[p + 1]) { lab[p + 1] = nl; stack[sp++] = p + 1; }
+      if (p >= sw && m[p - sw] && !lab[p - sw]) { lab[p - sw] = nl; stack[sp++] = p - sw; }
+      if (p < N - sw && m[p + sw] && !lab[p + sw]) { lab[p + sw] = nl; stack[sp++] = p + sw; } }
+    areas.push(a); bb.push([x0, y0, x1, y1]);
+  }
+  if (nl === 0) return c;
+  // main = biggest blob, weighted towards solid, non-flat shapes (a wide thin bar is UI, not a garment)
+  const score = i => { const [x0, y0, x1, y1] = bb[i]; const bw = x1 - x0 + 1, bh = y1 - y0 + 1; const flat = Math.min(bw, bh) / Math.max(bw, bh); return areas[i] * (flat < 0.22 ? 0.25 : 1); };
+  let main = 1; for (let i = 2; i <= nl; i++) if (score(i) > score(main)) main = i;
+  const M = bb[main], md = Math.max(M[2] - M[0], M[3] - M[1]) + 1;
+  const gap = i => { const B = bb[i]; const dx = Math.max(0, B[0] - M[2], M[0] - B[2]), dy = Math.max(0, B[1] - M[3], M[1] - B[3]); return Math.max(dx, dy); };
+  const keepL = new Uint8Array(nl + 1); keepL[main] = 1;
+  for (let i = 1; i <= nl; i++) if (i !== main && areas[i] >= areas[main] * 0.2 && gap(i) <= md * 0.25) keepL[i] = 1;
+  const keep = new Uint8Array(N); const r = 3;
+  for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) { if (!keepL[lab[y * sw + x]]) continue; for (let yy = Math.max(0, y - r); yy <= Math.min(sh - 1, y + r); yy++) for (let xx = Math.max(0, x - r); xx <= Math.min(sw - 1, x + r); xx++) keep[yy * sw + xx] = 1; }
+  for (let Y = 0; Y < h; Y++) { const y = Math.min(sh - 1, Math.floor(Y * k)); for (let X = 0; X < w; X++) { if (!keep[y * sw + Math.min(sw - 1, Math.floor(X * k))]) d[(Y * w + X) * 4 + 3] = 0; } }
+  ctx.putImageData(id, 0, 0); return c;
+}
+function hasAlpha(img) {
+  const c = drawTo(img, 200, true), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let t = 0;
+  for (let i = 3; i < d.length; i += 4) if (d[i] < 30) t++; return t / (d.length / 4) > 0.05;
+}
 function trimAlpha(c) {
   const w = c.width, h = c.height, d = c.getContext('2d').getImageData(0, 0, w, h).data;
   let x0 = w, y0 = h, x1 = -1, y1 = -1, n = 0;
@@ -738,7 +771,7 @@ const Vision = {
     const ctx = base.getContext('2d'); const id = ctx.getImageData(0, 0, base.width, base.height); const md = mask.data, ch = mask.channels || 1;
     for (let i = 0; i < base.width * base.height; i++) { const v = md[i * ch]; id.data[i * 4 + 3] = v < 70 ? 0 : v > 200 ? 255 : Math.round((v - 70) * 255 / 130); }
     ctx.putImageData(id, 0, 0);
-    return trimAlpha(base);
+    return trimAlpha(keepMain(base));
   },
   async classify(canvas) {
     await this.load();
@@ -756,6 +789,20 @@ function fieldsFromClass(cls, hex) {
   const f = { category: cls.category, sub: cls.sub, warmth: d[0], formality: d[1], styles: d[2], name: garmentName(cls.sub, cls.g, hex) };
   if (d[3]) f.waterproof = true; return f;
 }
+async function cleanOldCutouts() {
+  const list = items().filter(i => i.cut && (i.clean || 0) < 2 && i.img && i.img.startsWith('data:'));
+  if (!list.length) return; let n = 0;
+  for (const it of list) {
+    try {
+      const img = await loadImg(it.img); const cv = trimAlpha(keepMain(drawTo(img, 1024, true)));
+      const cur = getDoc(it.id); if (!cur) continue;
+      if (cv) { const p = await processSource(cv, true); await save({ ...clone(cur), img: p.dataURL, colors: p.colors, ph: p.ph, clean: 2 }); n++; }
+      else await save({ ...clone(cur), clean: 2 });
+    } catch { }
+    await sleep(30);
+  }
+  if (n) { render(); toast(`He limpiado el recorte de ${n} ${n === 1 ? 'prenda' : 'prendas'}`); }
+}
 async function visionQueue(made, keepCategory = false) {
   if (!Vision.enabled() || !made.length) return false;
   made.forEach(m => S.analyzing.add(m.it.id)); render();
@@ -763,12 +810,12 @@ async function visionQueue(made, keepCategory = false) {
   for (const m of made) {
     try {
       const u = URL.createObjectURL(m.src); let img; try { img = await loadImg(u); } finally { setTimeout(() => URL.revokeObjectURL(u), 5000); }
-      const cut = await Vision.removeBg(img);
+      const cut = hasAlpha(img) ? trimAlpha(keepMain(drawTo(img, 1024, true))) : await Vision.removeBg(img);
       const cur0 = getDoc(m.it.id); if (!cur0) { S.analyzing.delete(m.it.id); continue; }
       const srcCanvas = cut || drawTo(img, 1000);
       const cls = await Vision.classify(srcCanvas);
       const upd = { ...clone(getDoc(m.it.id)) };
-      if (cut) { const p = await processSource(cut, true); const ref = await Store.saveImage(p); Object.assign(upd, ref, { colors: p.colors, ph: p.ph, cut: true }); m.blob = p.aiBlob; }
+      if (cut) { if (!upd.cut && upd.img && Store.mode !== 'cloud') upd.imgOrig = upd.img; const p = await processSource(cut, true); const ref = await Store.saveImage(p); Object.assign(upd, ref, { colors: p.colors, ph: p.ph, cut: true, clean: 2 }); m.blob = p.aiBlob; }
       const t = (S.edit && S.edit.id === upd.id && S.edit._touched) || [];
       if (cls) {
         const f = fieldsFromClass(cls, (upd.colors || [])[0]);
@@ -1337,6 +1384,7 @@ function itemSheet() {
     <div class="ed-photo ${an ? 'scanning' : ''}"><img class="${e && e.cut ? 'cut' : ''}" src="${esc(imgSrc(e))}" alt="">${an ? `<div class="ai-scan"><span class="spin"></span> ${Vision.enabled() ? 'Quitando el fondo y detectando la prenda…' : 'La IA está analizando tu prenda…'}</div>` : ''}</div>
     ${AI.canSee() ? `<button class="btn soft full" data-act="reanalyze" ${an ? 'disabled' : ''}>${ic('sparkle')} ${e.needsReview ? 'Analizar con IA' : 'Volver a analizar con IA'}</button>` : (e.needsReview ? `<p class="note">Revisa la categoría y los datos: sin IA solo se detectan los colores automáticamente.</p>` : '')}
     ${Vision.supported() && !e.cut && !an ? `<button class="btn soft full" data-act="vis-one">${ic('target')} Quitar fondo y detectar tipo</button>` : ''}
+    ${e.cut && e.imgOrig && !an ? `<button class="btn full" data-act="uncut">${ic('refresh')} Deshacer recorte (usar la foto original)</button>` : ''}
     <label class="fl">Nombre<input type="text" data-f="name" value="${esc(e.name)}" maxlength="60"></label>
     <div class="fl">Categoría<div class="seg6">${CATS.map(c => `<button class="${e.category === c.id ? 'on' : ''}" data-act="f-cat" data-id="${c.id}">${c.label}</button>`).join('')}</div></div>
     <label class="fl">Tipo<input type="text" data-f="sub" value="${esc(e.sub)}" list="dl-sub" placeholder="p. ej. ${esc(subs[0] || '')}"><datalist id="dl-sub">${subs.map(s => `<option value="${esc(s)}">`).join('')}</datalist></label>
@@ -1474,7 +1522,7 @@ async function onFiles(files) {
       const it = { ...newItemFrom(p), ...ref };
       if (AI.canSee()) S.analyzing.add(it.id);
       if (Vision.enabled()) S.analyzing.add(it.id);
-      await save(it); made.push({ it, blob: p.aiBlob, src: p.blob });
+      await save(it); made.push({ it, blob: p.aiBlob, src: f });
     } catch (e) { toast('No he podido leer una de las fotos'); }
   }
   if (!made.length) return;
@@ -1662,6 +1710,13 @@ const A = {
     toast(`Recortando ${made.length} prendas…`); Vision.failed = false;
     await visionQueue(made.map(m => ({ ...m, it: { ...m.it } })));
   },
+  uncut: async () => {
+    const e = S.edit; if (!e || !e.imgOrig) return;
+    const img = await loadImg(e.imgOrig); const cols = extractColors(img);
+    S.edit = { ...S.edit, img: e.imgOrig, cut: false, imgOrig: null, colors: S.edit._touched.includes('colors') ? S.edit.colors : cols };
+    const cur = getDoc(e.id); if (cur) await save({ ...clone(cur), img: e.imgOrig, cut: false, imgOrig: null, colors: S.edit.colors });
+    refreshSheet(); render(); toast('Recorte deshecho');
+  },
   'vis-one': async () => {
     const e = S.edit; if (!e) return; Vision.failed = false; const src = await itemBlob(e);
     await visionQueue([{ it: { ...e }, src, blob: null }]); refreshSheet();
@@ -1830,6 +1885,7 @@ async function afterLoad() {
   const st = settings();
   if (st.wx) S.weather = { ...defaultWx(), ...st.wx, isDay: (() => { const h = new Date().getHours(); return h >= 7 && h < 19; })() };
   render();
+  cleanOldCutouts();
   autoWeather(true);
   setInterval(() => autoWeather(), 30 * 60000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') autoWeather(); });
