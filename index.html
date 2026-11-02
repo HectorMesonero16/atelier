@@ -668,7 +668,7 @@ const CLOTH = [
   ['a photo of a puffer jacket', 'outer', 'plumífero', 'm'], ['a photo of a blazer', 'outer', 'blazer', 'm'], ['a photo of a raincoat', 'outer', 'chubasquero', 'm'], ['a photo of a cardigan', 'outer', 'cárdigan', 'm'],
   ['a photo of sneakers', 'shoes', 'zapatillas', 'fp'], ['a photo of boots', 'shoes', 'botas', 'fp'], ['a photo of leather dress shoes', 'shoes', 'zapatos', 'mp'], ['a photo of loafers', 'shoes', 'mocasines', 'mp'],
   ['a photo of sandals', 'shoes', 'sandalias', 'fp'], ['a photo of high heels', 'shoes', 'tacones', 'mp'],
-  ['a photo of a baseball cap', 'accessory', 'gorra', 'f'], ['a photo of a beanie', 'accessory', 'gorro', 'm'], ['a photo of a hat', 'accessory', 'sombrero', 'm'], ['a photo of a scarf', 'accessory', 'bufanda', 'f'],
+  ['a photo of a baseball cap', 'accessory', 'gorra', 'f'], ['a photo of a cap with a visor', 'accessory', 'gorra', 'f'], ['a photo of a beanie', 'accessory', 'gorro', 'm'], ['a photo of a hat', 'accessory', 'sombrero', 'm'], ['a photo of a scarf', 'accessory', 'bufanda', 'f'],
   ['a photo of a belt', 'accessory', 'cinturón', 'm'], ['a photo of a handbag', 'accessory', 'bolso', 'm'], ['a photo of a backpack', 'accessory', 'mochila', 'f'], ['a photo of sunglasses', 'accessory', 'gafas de sol', 'fp'],
   ['a photo of a wristwatch', 'accessory', 'reloj', 'm'], ['a photo of a necklace', 'accessory', 'collar', 'm'],
 ];
@@ -714,7 +714,7 @@ const Vision = {
       const T = await import(TJS_URL); this.T = T;
       try { T.env.allowLocalModels = false; } catch { }
       const cb = x => {
-        if (x && x.status === 'progress' && x.file) {
+        if (!this.ready && x && x.status === 'progress' && x.file) {
           this.prog[(x.name || '') + '/' + x.file] = [x.loaded || 0, x.total || 0];
           const v = Object.values(this.prog); const l = v.reduce((a, b) => a + b[0], 0), t = v.reduce((a, b) => a + b[1], 0);
           if (t > 3e6) visionStatus(`Descargando la IA de recorte (solo la primera vez)… ${Math.min(99, Math.round(l / t * 100))}%`);
@@ -723,7 +723,7 @@ const Vision = {
       this.rm = await T.AutoModel.from_pretrained('briaai/RMBG-1.4', { config: { model_type: 'custom' }, dtype: 'q8', progress_callback: cb });
       this.rp = await T.AutoProcessor.from_pretrained('briaai/RMBG-1.4', { config: { do_normalize: true, do_pad: false, do_rescale: true, do_resize: true, image_mean: [0.5, 0.5, 0.5], feature_extractor_type: 'ImageFeatureExtractor', image_std: [1, 1, 1], resample: 2, rescale_factor: 0.00392156862745098, size: { width: 1024, height: 1024 } } });
       this.clf = await T.pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32', { dtype: 'q8', progress_callback: cb });
-      visionStatus(null);
+      this.ready = true; visionStatus(null); setTimeout(() => visionStatus(null), 300);
     })();
     this._p.catch(e => { console.error('vision', e); this.failed = true; this._p = null; visionStatus(null); });
     return this._p;
@@ -736,7 +736,7 @@ const Vision = {
     const { output } = await this.rm({ input: pixel_values });
     const mask = await T.RawImage.fromTensor(output[0].mul(255).to('uint8')).resize(base.width, base.height);
     const ctx = base.getContext('2d'); const id = ctx.getImageData(0, 0, base.width, base.height); const md = mask.data, ch = mask.channels || 1;
-    for (let i = 0; i < base.width * base.height; i++) id.data[i * 4 + 3] = md[i * ch];
+    for (let i = 0; i < base.width * base.height; i++) { const v = md[i * ch]; id.data[i * 4 + 3] = v < 70 ? 0 : v > 200 ? 255 : Math.round((v - 70) * 255 / 130); }
     ctx.putImageData(id, 0, 0);
     return trimAlpha(base);
   },
