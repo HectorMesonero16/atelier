@@ -503,12 +503,12 @@ const PALETTE = [
   ['Negro', '#141414'], ['Gris oscuro', '#404043'], ['Gris', '#8c8c8f'], ['Gris claro', '#c9c9cb'], ['Blanco', '#f6f6f3'],
   ['Crudo', '#ebe3d2'], ['Beige', '#d5c2a2'], ['Camel', '#b48553'], ['Marrón', '#6d4a2e'], ['Chocolate', '#3d2a1f'],
   ['Caqui', '#8f8a5c'], ['Oliva', '#5d6a39'], ['Verde botella', '#1f4a36'], ['Verde', '#2e8a4e'], ['Verde menta', '#a8d8c0'],
-  ['Turquesa', '#2bb0ad'], ['Azul celeste', '#9cc4e8'], ['Azul', '#2f63bd'], ['Denim', '#4c6b8f'], ['Azul marino', '#1c2847'],
+  ['Turquesa', '#2bb0ad'], ['Azul celeste', '#9cc4e8'], ['Azul', '#2f63bd'], ['Denim', '#4c6b8f'], ['Azul lavado', '#a7b9cc'], ['Azul marino', '#1c2847'],
   ['Lila', '#b9a3d9'], ['Morado', '#5c3a8c'], ['Rosa palo', '#e8bfc4'], ['Rosa', '#e693b0'], ['Fucsia', '#c42a7d'],
   ['Burdeos', '#6b1d2b'], ['Rojo', '#c62e2e'], ['Coral', '#ee7b62'], ['Naranja', '#e6782f'], ['Terracota', '#b65a3a'],
   ['Mostaza', '#c99b2c'], ['Amarillo', '#efd24b'], ['Dorado', '#c9a253'], ['Plateado', '#bfc1c7'],
 ];
-const NEUTRALS = new Set(['Negro', 'Gris oscuro', 'Gris', 'Gris claro', 'Blanco', 'Crudo', 'Beige', 'Camel', 'Marrón', 'Chocolate', 'Azul marino', 'Denim', 'Caqui', 'Plateado']);
+const NEUTRALS = new Set(['Azul lavado', 'Negro', 'Gris oscuro', 'Gris', 'Gris claro', 'Blanco', 'Crudo', 'Beige', 'Camel', 'Marrón', 'Chocolate', 'Azul marino', 'Denim', 'Caqui', 'Plateado']);
 const PAL_HEX = Object.fromEntries(PALETTE);
 function hexToRgb(h) { h = String(h || '#888888').replace('#', ''); if (h.length === 3) h = h.split('').map(c => c + c).join(''); const n = parseInt(h, 16) || 0; return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
 function rgbToHex(r, g, b) { return '#' + [r, g, b].map(v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join(''); }
@@ -606,13 +606,13 @@ function extractColors(img) {
 }
 async function processSource(img, cut = false) {
   if (cut) {
-    const big = drawTo(img, 900, true); const blob = await new Promise(r => big.toBlob(b => r(b), 'image/png'));
-    const dataURL = drawTo(img, 640, true).toDataURL('image/png');
+    const big = drawTo(img, 1400, true); const blob = await new Promise(r => big.toBlob(b => r(b), 'image/png'));
+    const dataURL = drawTo(img, 1100, true).toDataURL('image/png');
     const aiBlob = await canvasBlob(drawTo(img, 768), 0.82);
     return { blob, dataURL, aiBlob, colors: extractColors(img), ph: dhash(img), cut: true };
   }
-  const big = drawTo(img, 1000); const blob = await canvasBlob(big, 0.84);
-  const small = drawTo(img, 560); const dataURL = small.toDataURL('image/jpeg', 0.72);
+  const big = drawTo(img, 1600); const blob = await canvasBlob(big, 0.9);
+  const small = drawTo(img, 1100); const dataURL = small.toDataURL('image/jpeg', 0.86);
   const aiBlob = await canvasBlob(drawTo(img, 768), 0.82);
   return { blob, dataURL, aiBlob, colors: extractColors(img), ph: dhash(img) };
 }
@@ -721,7 +721,7 @@ const SUB_DEF = {
 };
 const COLOR_INV = new Set(['beige', 'camel', 'caqui', 'denim', 'coral', 'terracota', 'mostaza', 'burdeos', 'lila', 'fucsia', 'turquesa', 'rosa', 'naranja', 'oliva', 'azul marino', 'verde botella', 'rosa palo', 'verde menta', 'azul celeste']);
 function colorAdj(name, g) {
-  const n = name.toLowerCase(); if (COLOR_INV.has(n)) return n;
+  const n = name.toLowerCase(); if (COLOR_INV.has(n) || n.includes(' ')) return n;
   const words = n.split(' '); const fem = g[0] === 'f', pl = g.length > 1;
   return words.map(w => {
     if (/o$/.test(w)) w = fem ? w.slice(0, -1) + 'a' : w;
@@ -730,6 +730,52 @@ function colorAdj(name, g) {
   }).join(' ');
 }
 function garmentName(sub, g, hex) { return cap(sub) + ' ' + colorAdj(colorName(hex), g || 'm'); }
+/* paints out round white UI buttons (e.g. the ‹ › arrows of other apps) so they are never mistaken for clothing */
+function eraseUIButtons(c) {
+  const W = c.width, H = c.height, k = Math.min(1, 600 / W), sw = Math.round(W * k), sh = Math.round(H * k), N = sw * sh;
+  const t = document.createElement('canvas'); t.width = sw; t.height = sh; const tx = t.getContext('2d', { willReadFrequently: true }); tx.drawImage(c, 0, 0, sw, sh);
+  const d = tx.getImageData(0, 0, sw, sh).data, wm = new Uint8Array(N);
+  for (let i = 0; i < N; i++) { const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2]; if (r >= 249 && g >= 249 && b >= 249) wm[i] = 1; }
+  const lab = new Int32Array(N), st = new Int32Array(N); let n = 0; const found = [];
+  for (let p0 = 0; p0 < N; p0++) {
+    if (!wm[p0] || lab[p0]) continue; n++; let sp = 0, a = 0, x0 = sw, y0 = sh, x1 = 0, y1 = 0; st[sp++] = p0; lab[p0] = n; const pix = [];
+    while (sp) { const p = st[--sp]; a++; pix.push(p); const px = p % sw, py = (p - px) / sw; if (px < x0) x0 = px; if (px > x1) x1 = px; if (py < y0) y0 = py; if (py > y1) y1 = py;
+      if (px > 0 && wm[p - 1] && !lab[p - 1]) { lab[p - 1] = n; st[sp++] = p - 1; } if (px < sw - 1 && wm[p + 1] && !lab[p + 1]) { lab[p + 1] = n; st[sp++] = p + 1; }
+      if (p >= sw && wm[p - sw] && !lab[p - sw]) { lab[p - sw] = n; st[sp++] = p - sw; } if (p < N - sw && wm[p + sw] && !lab[p + sw]) { lab[p + sw] = n; st[sp++] = p + sw; } }
+    const bw = x1 - x0 + 1, bh = y1 - y0 + 1, dia = (bw + bh) / 2;
+    if (dia < sw * 0.035 || dia > sw * 0.12 || bw / bh < 0.75 || bw / bh > 1.33) continue;
+    const fill = a / (bw * bh); if (fill < 0.55 || fill > 0.86) continue;            // a disc fills ~78% of its box (minus the chevron)
+    let dark = 0, dx = 0, dy = 0; for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const i = (y * sw + x) * 4; if (d[i] < 150 && d[i + 1] < 150 && d[i + 2] < 150) { dark++; dx += x; dy += y; } }
+    if (dark < bw * bh * 0.02 || dark > bw * bh * 0.25) continue;                     // needs a small dark glyph inside (‹ › × …)
+    // the glyph sits in the centre of the button: use it as the centre, and the farthest white pixels as the radius
+    const gx = dx / dark, gy = dy / dark, ds = pix.map(p => { const px = p % sw; return Math.hypot(px - gx, (p - px) / sw - gy); }).sort((u, v) => u - v);
+    const rr = Math.max(ds[Math.floor(ds.length * 0.97)] || 0, dia / 2);
+    found.push([gx + 0.5, gy + 0.5, rr + 0.8]);
+  }
+  if (!found.length) return 0;
+  const cx = c.getContext('2d', { willReadFrequently: true });
+  for (const [gx, gy, gr] of found) {
+    // inpaint: fill the button (and its shadow) from the surrounding pixels, layer by layer, so a sleeve under it continues naturally
+    const ccx = gx / k, ccy = gy / k, r = gr / k;
+    const X0 = Math.max(0, Math.floor(ccx - r * 2)), Y0 = Math.max(0, Math.floor(ccy - r * 2)), X1 = Math.min(W, Math.ceil(ccx + r * 2)), Y1 = Math.min(H, Math.ceil(ccy + r * 2));
+    const w = X1 - X0, h = Y1 - Y0; if (w < 3 || h < 3) continue; const id = cx.getImageData(X0, Y0, w, h), q = id.data, m = new Uint8Array(w * h);
+    // background = most common grey on the outer ring
+    const hist = new Map(); let bgL = 240, hb = 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const dd = Math.hypot(x + X0 - ccx, y + Y0 - ccy); if (dd > r * 1.6 && dd < r * 2) { const i = (y * w + x) * 4; const L = Math.round((q[i] + q[i + 1] + q[i + 2]) / 6); const v = (hist.get(L) || 0) + 1; hist.set(L, v); if (v > hb) { hb = v; bgL = L * 2; } } }
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4, dd = Math.hypot(x + X0 - ccx, y + Y0 - ccy); if (dd <= r * 1.15) { m[y * w + x] = 1; continue; }
+      if (dd <= r * 1.7) { const mx = Math.max(q[i], q[i + 1], q[i + 2]), mn = Math.min(q[i], q[i + 1], q[i + 2]), L = (q[i] + q[i + 1] + q[i + 2]) / 3; if (mx - mn < 18 && Math.abs(L - bgL) > 1.5 && L > bgL - 80) m[y * w + x] = 1; }
+    }
+    for (let it = 0; it < 400; it++) {
+      const fill = []; for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { if (!m[y * w + x]) continue; let r0 = 0, g0 = 0, b0 = 0, c0 = 0;
+        for (let yy = Math.max(0, y - 1); yy <= Math.min(h - 1, y + 1); yy++) for (let xx = Math.max(0, x - 1); xx <= Math.min(w - 1, x + 1); xx++) { const j = yy * w + xx; if (!m[j]) { r0 += q[j * 4]; g0 += q[j * 4 + 1]; b0 += q[j * 4 + 2]; c0++; } }
+        if (c0) fill.push([y * w + x, r0 / c0, g0 / c0, b0 / c0]); }
+      if (!fill.length) break; for (const [j, r1, g1, b1] of fill) { q[j * 4] = r1; q[j * 4 + 1] = g1; q[j * 4 + 2] = b1; m[j] = 0; }
+    }
+    cx.putImageData(id, X0, Y0);
+  }
+  return found.length;
+}
 /* keep only the main garment: cut thin bridges (app arrows, buttons stuck to a sleeve), drop UI remnants and specks */
 function morph(src, w, h, r, max) {
   const t = new Uint8Array(w * h), o = new Uint8Array(w * h);
@@ -845,30 +891,72 @@ const Vision = {
   },
   async removeBg(src) {
     await this.load();
-    const base = drawTo(src, 2048);
+    const full = drawTo(src, 3200); eraseUIButtons(full);
+    const base = drawTo(full, 1600), fk = full.width / base.width;
     let cut = keepMain(await this.maskOnce(base));
     // second pass: zoom into the garment so the model sees it big (much cleaner edges, no app UI around)
     const d = cut.getContext('2d').getImageData(0, 0, cut.width, cut.height).data; let x0 = cut.width, y0 = cut.height, x1 = -1, y1 = -1;
     for (let y = 0; y < cut.height; y += 2) for (let x = 0; x < cut.width; x += 2) if (d[(y * cut.width + x) * 4 + 3] > 128) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
     if (x1 > x0 && (x1 - x0) * (y1 - y0) < base.width * base.height * 0.5) {
       const bw = x1 - x0, bh = y1 - y0, m = Math.max(bw, bh) * 0.1;
-      const cx0 = Math.max(0, x0 - m), cy0 = Math.max(0, y0 - m), cw = Math.min(base.width - cx0, bw + 2 * m), ch = Math.min(base.height - cy0, bh + 2 * m);
-      const crop = document.createElement('canvas'); crop.width = Math.round(cw); crop.height = Math.round(ch); crop.getContext('2d').drawImage(base, cx0, cy0, cw, ch, 0, 0, crop.width, crop.height);
+      const cx0 = Math.max(0, x0 - m) * fk, cy0 = Math.max(0, y0 - m) * fk, cw = Math.min(full.width - cx0, (bw + 2 * m) * fk), ch = Math.min(full.height - cy0, (bh + 2 * m) * fk);
+      const ck = Math.min(1, 2000 / Math.max(cw, ch)); const crop = document.createElement('canvas'); crop.width = Math.round(cw * ck); crop.height = Math.round(ch * ck);
+      crop.getContext('2d').drawImage(full, cx0, cy0, cw, ch, 0, 0, crop.width, crop.height);
       try { const cut2 = keepMain(await this.maskOnce(crop)); if (trimAlpha(cut2)) cut = cut2; } catch (e) { console.warn('refine', e); }
     }
     return trimAlpha(cut);
   },
-  async classify(canvas) {
+  /* two steps: 1) which kind of garment, 2) which exact type, with several descriptions per class + shape/colour clues */
+  async classify(canvas, forceCat = null) {
     await this.load();
-    const white = drawTo(canvas, 448);
-    const out = await this.clf(await this.rawFrom(white), CLOTH.map(c => c[0]));
-    const byLabel = new Map(out.map(o => [o.label, o.score])); const cats = {};
-    CLOTH.forEach(c => { cats[c[1]] = (cats[c[1]] || 0) + (byLabel.get(c[0]) || 0); });
-    const cat = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
-    const best = CLOTH.filter(c => c[1] === cat[0]).sort((a, b) => (byLabel.get(b[0]) || 0) - (byLabel.get(a[0]) || 0))[0];
-    return { category: cat[0], conf: cat[1], sub: best[2], g: best[3] };
+    const raw = await this.rawFrom(drawTo(canvas, 448));
+    const score = async groups => {
+      const labels = [], owner = []; for (const [k, ps] of Object.entries(groups)) for (const q of ps) { labels.push(q); owner.push(k); }
+      const out = await this.clf(raw, labels, { hypothesis_template: 'a product photo of {}' });
+      const m = new Map(out.map(o => [o.label, o.score])); const r = {}; labels.forEach((l, i) => { r[owner[i]] = (r[owner[i]] || 0) + (m.get(l) || 0); });
+      for (const k of Object.keys(r)) r[k] /= groups[k].length ** 0.35; return r;
+    };
+    let cat = forceCat, conf = 1;
+    if (!cat) { const c = await score(CAT_PROMPTS); const tot = Object.values(c).reduce((a, b) => a + b, 0) || 1; const best = Object.entries(c).sort((a, b) => b[1] - a[1])[0]; cat = best[0]; conf = best[1] / tot; }
+    const subs = SUB_PROMPTS[cat]; const sc = await score(Object.fromEntries(Object.entries(subs).map(([k, v]) => [k, v[1]])));
+    const shape = shapeClues(canvas), hex = extractColors(canvas)[0], [hh, ss] = rgbToHsl(...hexToRgb(hex));
+    if (cat === 'top' && shape.sleeve) {
+      const long = ['jersey', 'sudadera', 'camisa'], short = ['camiseta', 'polo', 'camiseta de tirantes'];
+      if (shape.sleeve < 0.8) long.forEach(k => { if (k !== 'camisa' && sc[k]) sc[k] *= 0.2; }); else if (shape.sleeve > 0.88) short.forEach(k => { if (sc[k]) sc[k] *= 0.25; });
+    }
+    if (cat === 'bottom' && sc['vaqueros'] != null && hh >= 185 && hh <= 240 && ss >= 0.1) sc['vaqueros'] *= 2.2;
+    const sub = Object.entries(sc).sort((a, b) => b[1] - a[1])[0][0];
+    return { category: cat, conf, sub, g: subs[sub][0] };
   },
 };
+const CAT_PROMPTS = {
+  top: ['a t-shirt', 'a shirt', 'a sweater', 'a hoodie', 'a sweatshirt', 'a polo shirt', 'a blouse', 'a tank top'],
+  bottom: ['jeans', 'trousers', 'pants', 'shorts', 'a skirt', 'sweatpants', 'leggings'],
+  dress: ['a dress', 'a jumpsuit'],
+  outer: ['a jacket', 'a coat', 'a blazer', 'a puffer jacket', 'a denim jacket', 'a raincoat'],
+  shoes: ['shoes', 'sneakers', 'boots', 'sandals', 'high heels'],
+  accessory: ['a baseball cap', 'a hat', 'a beanie', 'a handbag', 'a backpack', 'a belt', 'sunglasses', 'a scarf', 'a watch', 'a necklace'],
+};
+// type: [género/número, descripciones]
+const SUB_PROMPTS = {
+  top: { 'camiseta': ['f', ['a short-sleeved t-shirt', 'a plain cotton t-shirt', 'an oversized t-shirt', 'a graphic tee']], 'camisa': ['f', ['a button-up shirt with a collar', 'a dress shirt']], 'polo': ['m', ['a polo shirt with a collar and buttons', 'a piqué polo shirt']], 'jersey': ['m', ['a knit sweater', 'a wool jumper']], 'sudadera': ['f', ['a hoodie', 'a long-sleeved sweatshirt', 'a zip-up hoodie']], 'blusa': ['f', ['a blouse']], 'camiseta de tirantes': ['f', ['a tank top', 'a sleeveless top']] },
+  bottom: { 'vaqueros': ['mp', ['denim jeans', 'blue jeans', 'light wash baggy jeans', 'wide leg jeans']], 'pantalón de vestir': ['m', ['tailored dress trousers', 'formal suit trousers']], 'pantalón chino': ['m', ['chino pants', 'khaki trousers']], 'jogger': ['m', ['sweatpants', 'jogger pants', 'track pants']], 'shorts': ['mp', ['shorts', 'denim shorts', 'bermuda shorts']], 'falda': ['f', ['a skirt']], 'leggings': ['mp', ['leggings']] },
+  dress: { 'vestido': ['m', ['a dress']], 'mono': ['m', ['a jumpsuit', 'overalls']] },
+  outer: { 'chaqueta': ['f', ['a jacket', 'a bomber jacket']], 'cazadora vaquera': ['f', ['a denim jacket']], 'abrigo': ['m', ['a long wool coat', 'an overcoat']], 'plumífero': ['m', ['a puffer jacket', 'a down jacket']], 'blazer': ['m', ['a blazer', 'a suit jacket']], 'chubasquero': ['m', ['a raincoat', 'a windbreaker']], 'cárdigan': ['m', ['a cardigan']] },
+  shoes: { 'zapatillas': ['fp', ['sneakers', 'trainers', 'running shoes']], 'botas': ['fp', ['boots', 'ankle boots']], 'zapatos': ['mp', ['leather dress shoes', 'oxford shoes']], 'mocasines': ['mp', ['loafers']], 'sandalias': ['fp', ['sandals', 'flip flops']], 'tacones': ['mp', ['high heels']] },
+  accessory: { 'gorra': ['f', ['a baseball cap', 'a cap with a visor']], 'gorro': ['m', ['a beanie', 'a knit hat']], 'sombrero': ['m', ['a hat with a brim', 'a bucket hat']], 'bufanda': ['f', ['a scarf']], 'cinturón': ['m', ['a belt']], 'bolso': ['m', ['a handbag', 'a tote bag', 'a shoulder bag']], 'mochila': ['f', ['a backpack']], 'gafas de sol': ['fp', ['sunglasses']], 'reloj': ['m', ['a wristwatch']], 'collar': ['m', ['a necklace']] },
+};
+/* silhouette clue for tops: long sleeves hang down beside the body, short ones don't */
+function shapeClues(c) {
+  try {
+    const w = c.width, h = c.height, d = c.getContext('2d').getImageData(0, 0, w, h).data; let y0 = -1, y1 = -1;
+    const rowW = y => { let a = -1, b = -1; for (let x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > 128) { if (a < 0) a = x; b = x; } return a < 0 ? 0 : b - a; };
+    for (let y = 0; y < h; y++) if (rowW(y) > 0) { if (y0 < 0) y0 = y; y1 = y; }
+    if (y0 < 0) return {}; const H = y1 - y0; let top = 0; for (let t = 0.1; t <= 0.4; t += 0.03) top = Math.max(top, rowW(Math.round(y0 + t * H)));
+    const low = Math.max(rowW(Math.round(y0 + 0.72 * H)), rowW(Math.round(y0 + 0.78 * H)));
+    return { sleeve: top ? low / top : 0 };
+  } catch { return {}; }
+}
 function fieldsFromClass(cls, hex) {
   const d = SUB_DEF[cls.sub] || [2, 2, ['casual']];
   const f = { category: cls.category, sub: cls.sub, warmth: d[0], formality: d[1], styles: d[2], name: garmentName(cls.sub, cls.g, hex) };
@@ -900,8 +988,8 @@ async function visionQueue(made, keepCategory = false) {
       const srcCanvas = cut || drawTo(img, 1000);
       const cls = await Vision.classify(srcCanvas);
       const upd = { ...clone(getDoc(m.it.id)) };
-      if (cut) { if (!upd.cut && upd.img && Store.mode !== 'cloud') upd.imgOrig = m.src && m.src.size < 2.5e6 ? await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = () => r(upd.img); fr.readAsDataURL(m.src); }) : upd.img; const p = await processSource(cut, true); const ref = await Store.saveImage(p); Object.assign(upd, ref, { colors: p.colors, ph: p.ph, cut: true, clean: 4 }); m.blob = p.aiBlob; }
-      const t = (S.edit && S.edit.id === upd.id && S.edit._touched) || [];
+      if (cut) { if (!upd.cut && upd.img && Store.mode !== 'cloud') upd.imgOrig = m.src && m.src.size < 6e6 ? await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = () => r(upd.img); fr.readAsDataURL(m.src); }) : upd.img; const p = await processSource(cut, true); const ref = await Store.saveImage(p); Object.assign(upd, ref, { colors: p.colors, ph: p.ph, cut: true, clean: 4 }); m.blob = p.aiBlob; }
+      const t = [...((S.edit && S.edit.id === upd.id && S.edit._touched) || []), ...(upd.edited || [])];
       if (cls) {
         const f = fieldsFromClass(cls, (upd.colors || [])[0]);
         if (keepCategory && upd.category !== f.category) { delete f.category; delete f.sub; delete f.name; delete f.warmth; delete f.formality; delete f.styles; delete f.waterproof; }
@@ -1559,6 +1647,7 @@ function itemSheet() {
     ${AI.canSee() ? `<button class="btn soft full" data-act="reanalyze" ${an ? 'disabled' : ''}>${ic('sparkle')} ${e.needsReview ? 'Analizar con IA' : 'Volver a analizar con IA'}</button>` : (e.needsReview ? `<p class="note">Revisa la categoría y los datos: sin IA solo se detectan los colores automáticamente.</p>` : '')}
     ${Vision.supported() && !e.cut && !an ? `<button class="btn soft full" data-act="vis-one">${ic('target')} Quitar fondo y detectar tipo</button>` : ''}
     ${!an ? `<button class="btn soft full" data-act="retouch">${ic('eraser')} ${e.cut ? 'Retocar recorte (borrar restos con el dedo)' : 'Borrar el fondo a mano'}</button>` : ''}
+    ${e.cut && e.imgOrig && !an && Vision.supported() ? `<button class="btn soft full" data-act="recut">${ic('sparkle')} Repetir recorte con la IA mejorada</button>` : ''}
     ${e.cut && e.imgOrig && !an ? `<button class="btn full" data-act="uncut">${ic('refresh')} Deshacer recorte (usar la foto original)</button>` : ''}
     <label class="fl">Nombre<input type="text" data-f="name" value="${esc(e.name)}" maxlength="60"></label>
     <div class="fl">Categoría<div class="seg6">${CATS.map(c => `<button class="${e.category === c.id ? 'on' : ''}" data-act="f-cat" data-id="${c.id}">${c.label}</button>`).join('')}</div></div>
@@ -1628,7 +1717,9 @@ function settingsSheet() {
     ${Vision.supported() ? `<div class="card pad" style="margin-top:12px"><div style="display:flex;gap:10px;align-items:center">${ic('target')}<h3>Recorte y detección</h3></div>
       <p class="note">Al añadir una foto, <b>quito el fondo</b> para que solo se vea la prenda y <b>detecto qué es</b> (pantalón, gorra, zapatillas…). Funciona en tu iPhone: la primera vez descarga unos 180 MB (mejor con wifi) y después va sin enviar tus fotos a ningún sitio.${Vision.failed ? ' <b>No se pudo cargar la última vez</b>: comprueba tu conexión.' : ''}</p>
       <label class="fl row-toggle"><span>Recortar y detectar automáticamente</span><input type="checkbox" class="tgl" id="vis-on" ${lsGet('atelier_vision') !== 'off' ? 'checked' : ''}></label>
-      ${items().some(i => !i.cut) ? `<button class="btn soft full" data-act="vis-all">${ic('sparkle')} Recortar mis ${items().filter(i => !i.cut).length} prendas sin recortar</button>` : ''}</div>` : ''}
+      ${items().some(i => !i.cut) ? `<button class="btn soft full" data-act="vis-all">${ic('sparkle')} Recortar mis ${items().filter(i => !i.cut).length} prendas sin recortar</button>` : ''}
+      ${items().some(i => i.cut && i.imgOrig) ? `<button class="btn soft full" data-act="vis-recut-all">${ic('sparkle')} Repetir el recorte de ${items().filter(i => i.cut && i.imgOrig).length} prendas (más calidad)</button>` : ''}
+      ${items().some(i => i.cut) ? `<button class="btn full" data-act="vis-reclass">${ic('target')} Volver a detectar el tipo de mis prendas</button><p class="hint" style="margin-top:6px">No cambia lo que hayas corregido tú a mano.</p>` : ''}</div>` : ''}
     <div class="card pad" style="margin-top:12px"><div style="display:flex;gap:10px;align-items:center">${ic('cloudsync')}<h3>Tus datos</h3></div><p class="note">${stTxt}</p>
       <button class="btn soft full" data-act="export">${ic('copy')} Copiar copia de seguridad</button>
       <label class="fl">Restaurar copia<textarea id="import-txt" placeholder="Pega aquí una copia de seguridad"></textarea></label>
@@ -1672,7 +1763,7 @@ function retouchSheet() {
 }
 async function initRetouch() {
   const e = S.edit; const cv = $('#rt-canvas'); if (!e || !cv) return;
-  const img = await loadImg(imgSrc(e)); const W0 = img.naturalWidth, H0 = img.naturalHeight, k = Math.min(1, 1000 / Math.max(W0, H0));
+  const img = await loadImg(imgSrc(e)); const W0 = img.naturalWidth, H0 = img.naturalHeight, k = Math.min(1, 1400 / Math.max(W0, H0));
   cv.width = Math.round(W0 * k); cv.height = Math.round(H0 * k); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
   S.rtUndo = [];
 }
@@ -1964,6 +2055,31 @@ const A = {
     toast(`Recortando ${made.length} prendas…`); Vision.failed = false;
     await visionQueue(made.map(m => ({ ...m, it: { ...m.it } })));
   },
+  recut: async () => {
+    const e = S.edit; if (!e || !e.imgOrig) return; Vision.failed = false;
+    const src = dataURLToBlob(e.imgOrig); const it = { ...e, cut: false };
+    await visionQueue([{ it, src, blob: null }]); refreshSheet(); render();
+  },
+  'vis-recut-all': async () => {
+    const list = items().filter(i => i.cut && i.imgOrig); closeSheet(); go('armario'); Vision.failed = false;
+    toast(`Repitiendo el recorte de ${list.length} prendas…`);
+    await visionQueue(list.map(it => ({ it: { ...it, cut: false }, src: dataURLToBlob(it.imgOrig), blob: null })));
+  },
+  'vis-reclass': async () => {
+    const list = items().filter(i => i.cut); closeSheet(); go('armario'); Vision.failed = false;
+    if (!list.length) { toast('Primero recorta tus prendas'); return; }
+    toast(`Volviendo a detectar ${list.length} prendas…`); let n = 0;
+    for (const it of list) {
+      S.analyzing.add(it.id); render();
+      try {
+        const img = await loadImg(imgSrc(it)); const cv = drawTo(img, 1024, true); const cls = await Vision.classify(cv);
+        const cur = getDoc(it.id); if (!cur) continue; const ed = cur.edited || []; const f = fieldsFromClass(cls, (cur.colors || [])[0]); const upd = clone(cur);
+        for (const k of Object.keys(f)) if (!ed.includes(k)) upd[k] = f[k]; upd.needsReview = cls.conf < 0.45 && !ed.includes('category'); await save(upd); n++;
+      } catch (err) { console.error(err); S.analyzing.delete(it.id); toast('No he podido cargar la IA'); break; }
+      S.analyzing.delete(it.id); render();
+    }
+    toast(`${n} prendas actualizadas`);
+  },
   retouch: async () => { if (!S.edit) return; openSheet('retouch'); await initRetouch(); },
   'rt-undo': () => { const cv = $('#rt-canvas'); const u = S.rtUndo.pop(); if (cv && u) cv.getContext('2d').putImageData(u, 0, 0); },
   'rt-auto': () => { const cv = $('#rt-canvas'); if (!cv) return; const x = cv.getContext('2d'); S.rtUndo.push(x.getImageData(0, 0, cv.width, cv.height)); keepMain(cv); toast('Restos eliminados'); },
@@ -2037,7 +2153,7 @@ const A = {
     catch (err) { aiError(err); }
     S.analyzing.delete(id); refreshSheet(); render();
   },
-  'item-save': async () => { const doc = clone(S.edit); doc.name = (doc.name || '').trim() || 'Prenda'; doc.needsReview = false; doc.updatedAt = Date.now(); closeSheet(); await save(doc); render(); toast('Prenda guardada'); },
+  'item-save': async () => { const doc = clone(S.edit); doc.edited = [...new Set([...(doc.edited || []), ...(S.edit._touched || [])])]; doc.name = (doc.name || '').trim() || 'Prenda'; doc.needsReview = false; doc.updatedAt = Date.now(); closeSheet(); await save(doc); render(); toast('Prenda guardada'); },
   'item-del': async () => {
     const e = S.edit; if (!e) return; if (!await confirmBox(`¿Eliminar «${e.name}» de tu armario?`)) return;
     const it = getDoc(e.id); closeSheet(); await Store.del(e.id); if (it) Store.deleteImage(it); if (S.anchor === e.id) S.anchor = null;
