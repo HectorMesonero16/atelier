@@ -504,7 +504,7 @@ const PALETTE = [
   ['Crudo', '#ebe3d2'], ['Beige', '#d5c2a2'], ['Camel', '#b48553'], ['Marrón', '#6d4a2e'], ['Chocolate', '#3d2a1f'],
   ['Caqui', '#8f8a5c'], ['Oliva', '#5d6a39'], ['Verde botella', '#1f4a36'], ['Verde', '#2e8a4e'], ['Verde menta', '#a8d8c0'],
   ['Turquesa', '#2bb0ad'], ['Azul celeste', '#9cc4e8'], ['Azul', '#2f63bd'], ['Denim', '#4c6b8f'], ['Azul lavado', '#a7b9cc'], ['Azul marino', '#1c2847'],
-  ['Lila', '#b9a3d9'], ['Morado', '#5c3a8c'], ['Rosa palo', '#e8bfc4'], ['Rosa', '#e693b0'], ['Fucsia', '#c42a7d'],
+  ['Lila', '#b9a3d9'], ['Morado', '#5c3a8c'], ['Rosa claro', '#f5d8de'], ['Rosa palo', '#e8bfc4'], ['Rosa', '#e693b0'], ['Fucsia', '#c42a7d'],
   ['Burdeos', '#6b1d2b'], ['Rojo', '#c62e2e'], ['Coral', '#ee7b62'], ['Naranja', '#e6782f'], ['Terracota', '#b65a3a'],
   ['Mostaza', '#c99b2c'], ['Amarillo', '#efd24b'], ['Dorado', '#c9a253'], ['Plateado', '#bfc1c7'],
 ];
@@ -924,7 +924,9 @@ const Vision = {
       const long = ['jersey', 'sudadera', 'camisa'], short = ['camiseta', 'polo', 'camiseta de tirantes'];
       if (shape.sleeve < 0.8) long.forEach(k => { if (k !== 'camisa' && sc[k]) sc[k] *= 0.2; }); else if (shape.sleeve > 0.88) short.forEach(k => { if (sc[k]) sc[k] *= 0.25; });
     }
-    if (cat === 'bottom' && sc['vaqueros'] != null && hh >= 185 && hh <= 240 && ss >= 0.1) sc['vaqueros'] *= 2.2;
+    if (cat === 'bottom' && sc['vaqueros'] != null && hh >= 180 && hh <= 250 && ss >= 0.05) sc['vaqueros'] *= 2.2;
+    if (sc['camiseta'] != null) sc['camiseta'] *= 1.25;                  // most common garments get a small prior
+    if (sc['pantalón de vestir'] != null) sc['pantalón de vestir'] *= 0.75;
     const sub = Object.entries(sc).sort((a, b) => b[1] - a[1])[0][0];
     return { category: cat, conf, sub, g: subs[sub][0] };
   },
@@ -939,8 +941,8 @@ const CAT_PROMPTS = {
 };
 // type: [género/número, descripciones]
 const SUB_PROMPTS = {
-  top: { 'camiseta': ['f', ['a short-sleeved t-shirt', 'a plain cotton t-shirt', 'an oversized t-shirt', 'a graphic tee']], 'camisa': ['f', ['a button-up shirt with a collar', 'a dress shirt']], 'polo': ['m', ['a polo shirt with a collar and buttons', 'a piqué polo shirt']], 'jersey': ['m', ['a knit sweater', 'a wool jumper']], 'sudadera': ['f', ['a hoodie', 'a long-sleeved sweatshirt', 'a zip-up hoodie']], 'blusa': ['f', ['a blouse']], 'camiseta de tirantes': ['f', ['a tank top', 'a sleeveless top']] },
-  bottom: { 'vaqueros': ['mp', ['denim jeans', 'blue jeans', 'light wash baggy jeans', 'wide leg jeans']], 'pantalón de vestir': ['m', ['tailored dress trousers', 'formal suit trousers']], 'pantalón chino': ['m', ['chino pants', 'khaki trousers']], 'jogger': ['m', ['sweatpants', 'jogger pants', 'track pants']], 'shorts': ['mp', ['shorts', 'denim shorts', 'bermuda shorts']], 'falda': ['f', ['a skirt']], 'leggings': ['mp', ['leggings']] },
+  top: { 'camiseta': ['f', ['a short-sleeved t-shirt', 'a crew neck t-shirt', 'a plain cotton t-shirt', 'an oversized t-shirt', 'a graphic tee']], 'camisa': ['f', ['a button-up shirt with a collar', 'a dress shirt']], 'polo': ['m', ['a polo shirt with a collar and buttons', 'a piqué polo shirt']], 'jersey': ['m', ['a knit sweater', 'a wool jumper']], 'sudadera': ['f', ['a hoodie', 'a long-sleeved sweatshirt', 'a zip-up hoodie']], 'blusa': ['f', ['a blouse']], 'camiseta de tirantes': ['f', ['a tank top', 'a sleeveless top']] },
+  bottom: { 'vaqueros': ['mp', ['denim jeans', 'blue jeans', 'light wash baggy jeans', 'wide leg jeans', 'washed light blue denim pants']], 'pantalón de vestir': ['m', ['tailored dress trousers', 'formal suit trousers']], 'pantalón chino': ['m', ['chino pants', 'khaki trousers']], 'jogger': ['m', ['sweatpants', 'jogger pants', 'track pants']], 'shorts': ['mp', ['shorts', 'denim shorts', 'bermuda shorts']], 'falda': ['f', ['a skirt']], 'leggings': ['mp', ['leggings']] },
   dress: { 'vestido': ['m', ['a dress']], 'mono': ['m', ['a jumpsuit', 'overalls']] },
   outer: { 'chaqueta': ['f', ['a jacket', 'a bomber jacket']], 'cazadora vaquera': ['f', ['a denim jacket']], 'abrigo': ['m', ['a long wool coat', 'an overcoat']], 'plumífero': ['m', ['a puffer jacket', 'a down jacket']], 'blazer': ['m', ['a blazer', 'a suit jacket']], 'chubasquero': ['m', ['a raincoat', 'a windbreaker']], 'cárdigan': ['m', ['a cardigan']] },
   shoes: { 'zapatillas': ['fp', ['sneakers', 'trainers', 'running shoes']], 'botas': ['fp', ['boots', 'ankle boots']], 'zapatos': ['mp', ['leather dress shoes', 'oxford shoes']], 'mocasines': ['mp', ['loafers']], 'sandalias': ['fp', ['sandals', 'flip flops']], 'tacones': ['mp', ['high heels']] },
@@ -950,7 +952,7 @@ const SUB_PROMPTS = {
 function shapeClues(c) {
   try {
     const w = c.width, h = c.height, d = c.getContext('2d').getImageData(0, 0, w, h).data; let y0 = -1, y1 = -1;
-    const rowW = y => { let a = -1, b = -1; for (let x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > 128) { if (a < 0) a = x; b = x; } return a < 0 ? 0 : b - a; };
+    const rowW = y => { let n = 0; for (let x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > 128) n++; return n; };
     for (let y = 0; y < h; y++) if (rowW(y) > 0) { if (y0 < 0) y0 = y; y1 = y; }
     if (y0 < 0) return {}; const H = y1 - y0; let top = 0; for (let t = 0.1; t <= 0.4; t += 0.03) top = Math.max(top, rowW(Math.round(y0 + t * H)));
     const low = Math.max(rowW(Math.round(y0 + 0.72 * H)), rowW(Math.round(y0 + 0.78 * H)));
