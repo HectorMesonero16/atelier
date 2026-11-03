@@ -605,16 +605,13 @@ function extractColors(img) {
   return out.filter((o, i) => i === 0 || o.w / tot > 0.13).slice(0, 3).map(o => rgbToHex(...o.rgb));
 }
 async function processSource(img, cut = false) {
-  if (cut) {
-    const big = drawTo(img, 1400, true); const blob = await new Promise(r => big.toBlob(b => r(b), 'image/png'));
-    const dataURL = drawTo(img, 1100, true).toDataURL('image/png');
-    const aiBlob = await canvasBlob(drawTo(img, 768), 0.82);
-    return { blob, dataURL, aiBlob, colors: extractColors(img), ph: dhash(img), cut: true };
-  }
-  const big = drawTo(img, 1600); const blob = await canvasBlob(big, 0.9);
-  const small = drawTo(img, 1100); const dataURL = small.toDataURL('image/jpeg', 0.86);
+  const type = cut ? 'image/png' : 'image/jpeg';
+  const disp = drawTo(img, 1000, cut), th = drawTo(img, 420, cut);
+  const blob = await new Promise(r => disp.toBlob(r, type, 0.88)), thumbBlob = await new Promise(r => th.toBlob(r, type, 0.85));
   const aiBlob = await canvasBlob(drawTo(img, 768), 0.82);
-  return { blob, dataURL, aiBlob, colors: extractColors(img), ph: dhash(img) };
+  const p = { blob, thumbBlob, aiBlob, colors: extractColors(img), ph: dhash(img), cut };
+  if (Store.mode !== 'local') p.dataURL = drawTo(img, 600, cut).toDataURL(type, 0.8);   // small inline copy where there is no file storage
+  return p;
 }
 async function processFile(file) {
   const url = URL.createObjectURL(file);
@@ -679,17 +676,39 @@ function segmentGarments(img) {
   });
 }
 function dataURLToBlob(s) { const [h, b] = s.split(','); const mime = (h.match(/data:([^;]+)/) || [])[1] || 'image/jpeg'; const bin = atob(b); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return new Blob([u8], { type: mime }); }
-const _imgCache = new Map();
-function imgSrc(it) {
-  const s = it && it.img || ''; if (!s.startsWith('data:')) return s;
-  const c = _imgCache.get(it.id); if (c && c.len === s.length && c.head === s.slice(-40)) return c.url;
-  try { const url = URL.createObjectURL(dataURLToBlob(s)); if (c) URL.revokeObjectURL(c.url); _imgCache.set(it.id, { len: s.length, head: s.slice(-40), url }); return url; } catch { return s; }
+/* Images live in IndexedDB as files ("idb:<key>" refs) and are turned into object URLs only when shown */
+const SAFE = /[?&]seguro/.test(location.search);
+const PH = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+const _refURL = new Map(), _refLoading = new Set(), _dataCache = new Map();
+function refURL(ref) {
+  if (!ref) return PH;
+  if (ref.startsWith('idb:')) {
+    const u = _refURL.get(ref); if (u) return u;
+    if (!_refLoading.has(ref)) {
+      _refLoading.add(ref);
+      Store.getBlob(ref.slice(4)).then(b => {
+        if (!b) return; const url = URL.createObjectURL(b); _refURL.set(ref, url); const ph = PH + '#' + ref;
+        document.querySelectorAll('img').forEach(im => { if (im.getAttribute('src') === ph) im.src = url; });
+      }).catch(() => { }).finally(() => _refLoading.delete(ref));
+    }
+    return PH + '#' + ref;
+  }
+  if (ref.startsWith('data:')) {
+    const key = ref.length + ':' + ref.slice(-48); const c = _dataCache.get(key); if (c) return c;
+    try { const url = URL.createObjectURL(dataURLToBlob(ref)); _dataCache.set(key, url); return url; } catch { return ref; }
+  }
+  return ref;
 }
-async function itemBlob(it) {
-  if (!it.img) throw new Error('sin imagen');
-  if (it.img.startsWith('data:')) return dataURLToBlob(it.img);
-  const img = await loadImg(it.img); return canvasBlob(drawTo(img, 768), 0.82);
+function imgSrc(it, kind = 'thumb') { if (!it || SAFE) return PH; return refURL(kind === 'thumb' ? (it.thumb || it.img) : (it.img || it.thumb)); }
+async function refBlob(ref) {
+  if (!ref) throw new Error('sin imagen');
+  if (ref.startsWith('idb:')) { const b = await Store.getBlob(ref.slice(4)); if (!b) throw new Error('imagen no encontrada'); return b; }
+  if (ref.startsWith('data:')) return dataURLToBlob(ref);
+  return (await fetch(ref)).blob();
 }
+async function refImg(ref) { const u = URL.createObjectURL(await refBlob(ref)); try { return await loadImg(u); } finally { setTimeout(() => URL.revokeObjectURL(u), 4000); } }
+async function itemBlob(it) { const img = await refImg(it.img || it.thumb); return canvasBlob(drawTo(img, 768), 0.82); }
+const blobToDataURL = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(b); });
 const blobToB64 = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(b); });
 
 /* ---------- On-device vision: background removal (RMBG-1.4) + garment type (CLIP) ---------- */
@@ -891,7 +910,7 @@ const Vision = {
   },
   async removeBg(src) {
     await this.load();
-    const full = drawTo(src, 3200); eraseUIButtons(full);
+    const full = drawTo(src, 2400); eraseUIButtons(full);
     const base = drawTo(full, 1600), fk = full.width / base.width;
     let cut = keepMain(await this.maskOnce(base));
     // second pass: zoom into the garment so the model sees it big (much cleaner edges, no app UI around)
@@ -964,19 +983,30 @@ function fieldsFromClass(cls, hex) {
   const f = { category: cls.category, sub: cls.sub, warmth: d[0], formality: d[1], styles: d[2], name: garmentName(cls.sub, cls.g, hex) };
   if (d[3]) f.waterproof = true; return f;
 }
-async function cleanOldCutouts() {
-  const list = items().filter(i => i.cut && (i.clean || 0) < 4 && i.img && i.img.startsWith('data:'));
-  if (!list.length) return; let n = 0;
-  for (const it of list) {
+/* one-time move of old inline images (long text) to files, one item at a time; if the app ever dies on an item it is skipped next time */
+async function migrateImages() {
+  if (Store.mode !== 'local' || !Store.idb) return;
+  const skip = new Set(JSON.parse(lsGet('atelier_mig_skip') || '[]')); const was = lsGet('atelier_mig_cur');
+  if (was) { skip.add(was); lsSet('atelier_mig_skip', JSON.stringify([...skip])); lsSet('atelier_mig_cur', null); }
+  const todo = items().filter(i => !skip.has(i.id) && ((i.img && i.img.startsWith('data:')) || (i.imgOrig && i.imgOrig.startsWith('data:')) || (i.img && !i.thumb)));
+  let n = 0;
+  for (const it0 of todo) {
+    lsSet('atelier_mig_cur', it0.id);
     try {
-      const img = await loadImg(it.img); const cv = trimAlpha(keepMain(drawTo(img, 1024, true)));
-      const cur = getDoc(it.id); if (!cur) continue;
-      if (cv) { const p = await processSource(cv, true); await save({ ...clone(cur), img: p.dataURL, colors: p.colors, ph: p.ph, clean: 4 }); n++; }
-      else await save({ ...clone(cur), clean: 4 });
-    } catch { }
-    await sleep(30);
+      const cur = getDoc(it0.id); if (!cur) continue; const d = { ...cur };
+      if (d.img && (d.img.startsWith('data:') || !d.thumb)) {
+        const b = await refBlob(d.img); const u = URL.createObjectURL(b); let img; try { img = await loadImg(u); } finally { URL.revokeObjectURL(u); }
+        const cut = !!d.cut; const type = cut ? 'image/png' : 'image/jpeg';
+        const disp = d.img.startsWith('data:') ? await Store.putBlob(uid('b'), b) : d.img;
+        const th = drawTo(img, 420, cut); const tb = await new Promise(r => th.toBlob(r, type, 0.85));
+        d.img = disp; d.thumb = await Store.putBlob(uid('b'), tb);
+      }
+      if (d.imgOrig && d.imgOrig.startsWith('data:')) d.imgOrig = await Store.putBlob(uid('b'), dataURLToBlob(d.imgOrig));
+      await save(d); n++;
+    } catch (e) { console.warn('migrate', e); }
+    lsSet('atelier_mig_cur', null); await sleep(40);
   }
-  if (n) { render(); toast(`He ajustado el recorte de ${n} ${n === 1 ? 'prenda' : 'prendas'}`); }
+  if (n) render();
 }
 async function visionQueue(made, keepCategory = false) {
   if (!Vision.enabled() || !made.length) return false;
@@ -990,7 +1020,11 @@ async function visionQueue(made, keepCategory = false) {
       const srcCanvas = cut || drawTo(img, 1000);
       const cls = await Vision.classify(srcCanvas);
       const upd = { ...clone(getDoc(m.it.id)) };
-      if (cut) { if (!upd.cut && upd.img && Store.mode !== 'cloud') upd.imgOrig = m.src && m.src.size < 6e6 ? await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = () => r(upd.img); fr.readAsDataURL(m.src); }) : upd.img; const p = await processSource(cut, true); const ref = await Store.saveImage(p); Object.assign(upd, ref, { colors: p.colors, ph: p.ph, cut: true, clean: 4 }); m.blob = p.aiBlob; }
+      if (cut) {
+        if (!upd.imgOrig && m.src) { let ob = m.src; if (ob.size > 5e6) ob = await canvasBlob(drawTo(img, 2400), 0.9); upd.imgOrig = await Store.saveOriginal(ob); }
+        const old = [upd.img, upd.thumb]; const p = await processSource(cut, true); const ref = await Store.saveImage(p);
+        Object.assign(upd, ref, { colors: p.colors, ph: p.ph, cut: true, clean: 5 }); m.blob = p.aiBlob; Store.freeRefs(old.filter(r => r && r !== upd.imgOrig));
+      }
       const t = [...((S.edit && S.edit.id === upd.id && S.edit._touched) || []), ...(upd.edited || [])];
       if (cls) {
         const f = fieldsFromClass(cls, (upd.colors || [])[0]);
@@ -999,7 +1033,7 @@ async function visionQueue(made, keepCategory = false) {
         upd.needsReview = keepCategory ? false : cls.conf < 0.45;
       }
       await save(upd); ok++;
-      if (S.edit && S.edit.id === upd.id) { const merged = { ...S.edit }; for (const k of ['img', 'imgId', 'colors', 'ph', 'cut', 'needsReview', 'category', 'sub', 'warmth', 'formality', 'styles', 'waterproof', 'name']) if (!t.includes(k) && k in upd) merged[k] = upd[k]; S.edit = merged; }
+      if (S.edit && S.edit.id === upd.id) { const merged = { ...S.edit }; for (const k of ['img', 'imgId', 'thumb', 'thumbId', 'imgOrig', 'colors', 'ph', 'cut', 'needsReview', 'category', 'sub', 'warmth', 'formality', 'styles', 'waterproof', 'name']) if (!t.includes(k) && k in upd) merged[k] = upd[k]; S.edit = merged; }
     } catch (e) {
       console.error(e); made.forEach(x => S.analyzing.delete(x.it.id)); render(); if (S.sheet && S.sheet.kind === 'item') refreshSheet();
       toast(Vision.failed ? 'No he podido cargar la IA de recorte. Revisa tu conexión e inténtalo de nuevo.' : 'No he podido recortar una foto'); return ok > 0;
@@ -1033,8 +1067,8 @@ const Store = {
   openIdb() {
     return new Promise(res => {
       try {
-        const r = indexedDB.open('atelier', 1);
-        r.onupgradeneeded = () => r.result.createObjectStore('docs', { keyPath: 'id' });
+        const r = indexedDB.open('atelier', 2);
+        r.onupgradeneeded = () => { const db = r.result; if (!db.objectStoreNames.contains('docs')) db.createObjectStore('docs', { keyPath: 'id' }); if (!db.objectStoreNames.contains('blobs')) db.createObjectStore('blobs'); };
         r.onsuccess = () => { this.idb = r.result; this.mode = 'local'; res(); };
         r.onerror = () => { this.mode = 'memory'; res(); };
       } catch { this.mode = 'memory'; res(); }
@@ -1075,13 +1109,25 @@ const Store = {
     });
     this.q.set(id, p); return p;
   },
+  putBlob(key, blob) { return new Promise((res, rej) => { const tx = this.idb.transaction('blobs', 'readwrite'); tx.objectStore('blobs').put(blob, key); tx.oncomplete = () => res('idb:' + key); tx.onerror = () => rej(tx.error); }); },
+  getBlob(key) { return new Promise(res => { if (!this.idb) return res(null); try { const r = this.idb.transaction('blobs', 'readonly').objectStore('blobs').get(key); r.onsuccess = () => res(r.result || null); r.onerror = () => res(null); } catch { res(null); } }); },
+  delBlob(key) { return new Promise(res => { try { const tx = this.idb.transaction('blobs', 'readwrite'); tx.objectStore('blobs').delete(key); tx.oncomplete = () => res(); tx.onerror = () => res(); } catch { res(); } }); },
+  async freeRefs(refs) { for (const r of refs) if (r && r.startsWith('idb:') && this.idb) { await this.delBlob(r.slice(4)); const u = _refURL.get(r); if (u) { URL.revokeObjectURL(u); _refURL.delete(r); } } },
   async saveImage(p) {
     if (this.mode === 'cloud' && this.assets) {
-      try { const a = await this.assets.upload(p.blob); if (a && (a.url || a.id)) return { img: a.url || ('/_blob/' + a.id), imgId: a.id }; } catch { }
+      try {
+        const a = await this.assets.upload(p.blob); let t = null; try { if (p.thumbBlob) t = await this.assets.upload(p.thumbBlob); } catch { }
+        if (a && (a.url || a.id)) return { img: a.url || ('/_blob/' + a.id), imgId: a.id, thumb: t ? (t.url || ('/_blob/' + t.id)) : null, thumbId: t ? t.id : null };
+      } catch { }
     }
-    return { img: p.dataURL };
+    if (this.mode === 'local' && this.idb) { const img = await this.putBlob(uid('b'), p.blob); const thumb = p.thumbBlob ? await this.putBlob(uid('b'), p.thumbBlob) : null; return { img, thumb }; }
+    return { img: p.dataURL || (p.blob ? await blobToDataURL(p.blob) : null), thumb: null };
   },
-  async deleteImage(it) { if (this.mode === 'cloud' && this.assets && it.imgId) { try { await this.assets.delete(it.imgId); } catch { } } },
+  async saveOriginal(blob) { if (this.mode !== 'local' || !this.idb || !blob) return null; try { return await this.putBlob(uid('b'), blob); } catch { return null; } },
+  async deleteImage(it) {
+    if (this.mode === 'cloud' && this.assets) { for (const id of [it.imgId, it.thumbId]) if (id) { try { await this.assets.delete(id); } catch { } } }
+    await this.freeRefs([it.img, it.thumb, it.imgOrig]);
+  },
 };
 
 /* ---------- AI ---------- */
@@ -1438,7 +1484,7 @@ function mannequin(ids, { act = '', i = null, cls = '', adj = null } = {}) {
       <path d="M96 92 Q150 80 204 92 Q226 98 230 122 L246 248 Q248 262 238 262 Q230 262 228 250 L212 150 L206 246 L94 246 L88 150 L72 250 Q70 262 62 262 Q52 262 54 248 L70 122 Q74 98 96 92 Z"/>
       <path d="M96 240 L204 240 L206 300 L196 470 Q195 482 182 482 Q170 482 169 470 L156 300 L144 300 L131 470 Q130 482 118 482 Q105 482 104 470 L94 300 Z"/>
       <ellipse cx="118" cy="492" rx="20" ry="9"/><ellipse cx="182" cy="492" rx="20" ry="9"/></g></svg>
-    ${pieces.map(({ x, b, z, open }) => `<button class="mq-p ${x.cut ? 'cut' : 'raw'} ${open && x.cut ? 'open' : ''} al-${b[4]} ${adjusting && S.adjust.itemId === x.id ? 'sel' : ''}" data-b="${b.map(v => typeof v === 'number' ? v.toFixed(1) : v).join(',')}" data-item="${esc(x.id)}" style="${boxStyle(fitBox(b, x.fit))};z-index:${z}" ${act ? `data-act="${act}" data-i="${i ?? ''}"` : 'tabindex="-1"'} aria-label="${esc(x.name)}"><img src="${esc(imgSrc(x))}" alt="${esc(x.name)}" loading="lazy"></button>`).join('')}
+    ${pieces.map(({ x, b, z, open }) => `<button class="mq-p ${x.cut ? 'cut' : 'raw'} ${open && x.cut ? 'open' : ''} al-${b[4]} ${adjusting && S.adjust.itemId === x.id ? 'sel' : ''}" data-b="${b.map(v => typeof v === 'number' ? v.toFixed(1) : v).join(',')}" data-item="${esc(x.id)}" style="${boxStyle(fitBox(b, x.fit))};z-index:${z}" ${act ? `data-act="${act}" data-i="${i ?? ''}"` : 'tabindex="-1"'} aria-label="${esc(x.name)}"><img src="${esc(imgSrc(x, 'img'))}" alt="${esc(x.name)}" loading="lazy"></button>`).join('')}
   </div>`;
 }
 function adjustPanel(key) {
@@ -1645,7 +1691,7 @@ function itemSheet() {
   const e = S.edit; if (!e) return ''; const an = S.analyzing.has(e.id);
   const subs = SUBS[e.category] || [];
   return shead(S.sheet.isNew ? 'Nueva <em>prenda</em>' : 'Editar <em>prenda</em>') + `
-    <div class="ed-photo ${an ? 'scanning' : ''}"><img class="${e && e.cut ? 'cut' : ''}" src="${esc(imgSrc(e))}" alt="">${an ? `<div class="ai-scan"><span class="spin"></span> ${Vision.enabled() ? 'Quitando el fondo y detectando la prenda…' : 'La IA está analizando tu prenda…'}</div>` : ''}</div>
+    <div class="ed-photo ${an ? 'scanning' : ''}"><img class="${e && e.cut ? 'cut' : ''}" src="${esc(imgSrc(e, 'img'))}" alt="">${an ? `<div class="ai-scan"><span class="spin"></span> ${Vision.enabled() ? 'Quitando el fondo y detectando la prenda…' : 'La IA está analizando tu prenda…'}</div>` : ''}</div>
     ${AI.canSee() ? `<button class="btn soft full" data-act="reanalyze" ${an ? 'disabled' : ''}>${ic('sparkle')} ${e.needsReview ? 'Analizar con IA' : 'Volver a analizar con IA'}</button>` : (e.needsReview ? `<p class="note">Revisa la categoría y los datos: sin IA solo se detectan los colores automáticamente.</p>` : '')}
     ${Vision.supported() && !e.cut && !an ? `<button class="btn soft full" data-act="vis-one">${ic('target')} Quitar fondo y detectar tipo</button>` : ''}
     ${!an ? `<button class="btn soft full" data-act="retouch">${ic('eraser')} ${e.cut ? 'Retocar recorte (borrar restos con el dedo)' : 'Borrar el fondo a mano'}</button>` : ''}
@@ -1765,7 +1811,7 @@ function retouchSheet() {
 }
 async function initRetouch() {
   const e = S.edit; const cv = $('#rt-canvas'); if (!e || !cv) return;
-  const img = await loadImg(imgSrc(e)); const W0 = img.naturalWidth, H0 = img.naturalHeight, k = Math.min(1, 1400 / Math.max(W0, H0));
+  const img = await refImg(e.img || e.thumb); const W0 = img.naturalWidth, H0 = img.naturalHeight, k = Math.min(1, 1400 / Math.max(W0, H0));
   cv.width = Math.round(W0 * k); cv.height = Math.round(H0 * k); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
   S.rtUndo = [];
 }
@@ -2059,13 +2105,14 @@ const A = {
   },
   recut: async () => {
     const e = S.edit; if (!e || !e.imgOrig) return; Vision.failed = false;
-    const src = dataURLToBlob(e.imgOrig); const it = { ...e, cut: false };
+    const src = await refBlob(e.imgOrig); const it = { ...e, cut: false };
     await visionQueue([{ it, src, blob: null }]); refreshSheet(); render();
   },
   'vis-recut-all': async () => {
     const list = items().filter(i => i.cut && i.imgOrig); closeSheet(); go('armario'); Vision.failed = false;
     toast(`Repitiendo el recorte de ${list.length} prendas…`);
-    await visionQueue(list.map(it => ({ it: { ...it, cut: false }, src: dataURLToBlob(it.imgOrig), blob: null })));
+    const made = []; for (const it of list) { try { made.push({ it: { ...it, cut: false }, src: await refBlob(it.imgOrig), blob: null }); } catch { } }
+    await visionQueue(made);
   },
   'vis-reclass': async () => {
     const list = items().filter(i => i.cut); closeSheet(); go('armario'); Vision.failed = false;
@@ -2074,7 +2121,7 @@ const A = {
     for (const it of list) {
       S.analyzing.add(it.id); render();
       try {
-        const img = await loadImg(imgSrc(it)); const cv = drawTo(img, 1024, true); const cls = await Vision.classify(cv);
+        const img = await refImg(it.img || it.thumb); const cv = drawTo(img, 1024, true); const cls = await Vision.classify(cv);
         const cur = getDoc(it.id); if (!cur) continue; const ed = cur.edited || []; const f = fieldsFromClass(cls, (cur.colors || [])[0]); const upd = clone(cur);
         for (const k of Object.keys(f)) if (!ed.includes(k)) upd[k] = f[k]; upd.needsReview = cls.conf < 0.45 && !ed.includes('category'); await save(upd); n++;
       } catch (err) { console.error(err); S.analyzing.delete(it.id); toast('No he podido cargar la IA'); break; }
@@ -2088,9 +2135,10 @@ const A = {
   'rt-cancel': () => openSheet('item', { isNew: false }),
   'rt-save': async () => {
     const cv = $('#rt-canvas'); if (!cv || !S.edit) return; const t = trimAlpha(cv, true); if (!t) { toast('Has borrado toda la prenda'); return; }
-    const p = await processSource(t, true); const ref = await Store.saveImage(p); const id = S.edit.id;
-    const upd = { img: ref.img, imgId: ref.imgId, colors: S.edit._touched.includes('colors') ? S.edit.colors : p.colors, ph: p.ph, cut: true, clean: 4 };
-    S.edit = { ...S.edit, ...upd }; const cur = getDoc(id); if (cur) await save({ ...clone(cur), ...upd });
+    const e = S.edit, id = e.id, touched = e._touched || [], old = [e.img, e.thumb].filter(r => r && r !== e.imgOrig);
+    const p = await processSource(t, true); const ref = await Store.saveImage(p);
+    const upd = { ...ref, colors: touched.includes('colors') ? e.colors : p.colors, ph: p.ph, cut: true, clean: 5 }; Store.freeRefs(old);
+    S.edit = { ...e, ...upd }; const cur = getDoc(id); if (cur) await save({ ...clone(cur), ...upd });
     openSheet('item', { isNew: false }); render(); toast('Recorte guardado');
   },
   'adj-start': el => { S.adjust = { key: el.dataset.t, itemId: null }; el.dataset.t === 's' ? refreshSheet() : render(); },
@@ -2099,9 +2147,10 @@ const A = {
   'adj-reset': async () => { const it = getDoc(S.adjust.itemId); if (!it) return; const d = clone(it); delete d.fit; await save(d); S.adjust.key === 's' ? refreshSheet() : render(); },
   uncut: async () => {
     const e = S.edit; if (!e || !e.imgOrig) return;
-    const img = await loadImg(e.imgOrig); const cols = extractColors(img);
-    S.edit = { ...S.edit, img: e.imgOrig, cut: false, imgOrig: null, colors: S.edit._touched.includes('colors') ? S.edit.colors : cols };
-    const cur = getDoc(e.id); if (cur) await save({ ...clone(cur), img: e.imgOrig, cut: false, imgOrig: null, colors: S.edit.colors });
+    const touched = e._touched || [], keepCols = e.colors; toast('Recuperando la foto original…');
+    const img = await refImg(e.imgOrig); const p = await processSource(img, false); const ref = await Store.saveImage(p); const old = [e.img, e.thumb];
+    const upd = { ...ref, cut: false, colors: touched.includes('colors') ? keepCols : p.colors, ph: p.ph };
+    if (S.edit && S.edit.id === e.id) S.edit = { ...S.edit, ...upd }; const cur = getDoc(e.id); if (cur) await save({ ...clone(cur), ...upd }); Store.freeRefs(old);
     refreshSheet(); render(); toast('Recorte deshecho');
   },
   'vis-one': async () => {
@@ -2188,7 +2237,9 @@ const A = {
   },
   'key-save': () => { const k = ($('#api-key').value || '').trim(); lsSet('atelier_api_key', k || null); toast(k ? 'Clave guardada en este dispositivo' : 'Clave eliminada'); refreshSheet(); render(); },
   export: async () => {
-    const data = JSON.stringify({ app: 'atelier', v: 1, at: Date.now(), docs: [...S.docs.values()] });
+    toast('Preparando la copia…'); const docs = [];
+    for (const d0 of S.docs.values()) { const d = { ...d0 }; delete d.imgOrig; for (const f of ['img', 'thumb']) if (d[f] && d[f].startsWith('idb:')) { try { d[f] = await blobToDataURL(await refBlob(d[f])); } catch { d[f] = null; } } docs.push(d); }
+    const data = JSON.stringify({ app: 'atelier', v: 2, at: Date.now(), docs });
     try { await navigator.clipboard.writeText(data); toast(`Copia copiada (${Math.round(data.length / 1024)} KB). Pégala en Notas o Archivos`); }
     catch { const ta = $('#import-txt'); if (ta) { ta.value = data; ta.select(); } toast('Copia el texto del recuadro'); }
   },
@@ -2197,13 +2248,17 @@ const A = {
     if (!d || d.app !== 'atelier' || !Array.isArray(d.docs)) { toast('El texto no es una copia válida'); return; }
     if (!await confirmBox(`¿Importar ${d.docs.filter(x => x.type === 'item').length} prendas y sus looks? Se añadirán a lo que ya tienes.`, 'Importar')) return;
     closeSheet(); toast('Importando…');
-    for (const doc of d.docs) { if (doc && doc.id && doc.type) { try { await save(doc); } catch { break; } } }
+    for (const doc of d.docs) {
+      if (!(doc && doc.id && doc.type)) continue;
+      try { if (Store.mode === 'local') for (const f of ['img', 'thumb', 'imgOrig']) if (doc[f] && doc[f].startsWith('data:')) doc[f] = await Store.putBlob(uid('b'), dataURLToBlob(doc[f])); await save(doc); } catch { break; }
+    }
     render(); toast('Copia importada');
   },
   wipe: async () => {
     if (!await confirmBox('¿Borrar TODAS tus prendas, looks y diario? No se puede deshacer.', 'Borrar todo')) return;
     closeSheet(); const all = [...S.docs.values()];
-    for (const d of all) { try { await Store.del(d.id); if (d.type === 'item') Store.deleteImage(d); } catch { } }
+    for (const d of all) { try { await Store.del(d.id); if (d.type === 'item') await Store.deleteImage(d); } catch { } }
+    if (Store.idb) { try { await new Promise(r => { const tx = Store.idb.transaction('blobs', 'readwrite'); tx.objectStore('blobs').clear(); tx.oncomplete = r; tx.onerror = r; }); } catch { } }
     S.results = []; S.anchor = null; S.shop = null; render(); toast('Armario vacío');
   },
 };
@@ -2296,7 +2351,7 @@ async function afterLoad() {
   const st = settings();
   if (st.wx) S.weather = { ...defaultWx(), ...st.wx, isDay: (() => { const h = new Date().getHours(); return h >= 7 && h < 19; })() };
   render();
-  cleanOldCutouts();
+  if (SAFE) toast('Modo seguro: sin imágenes ni conversiones'); else setTimeout(migrateImages, 800);
   autoWeather(true);
   setInterval(() => autoWeather(), 30 * 60000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') autoWeather(); });
